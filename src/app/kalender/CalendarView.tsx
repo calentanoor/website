@@ -210,12 +210,7 @@ function EventRow({ event: e }: { event: CalendarEvent }) {
           {e.symbol && <span className="font-mono"> · {e.symbol}</span>}
         </div>
       </div>
-      {(e.forecast || e.previous) && (
-        <div className="hidden shrink-0 text-right text-xs tabular-nums sm:block">
-          {e.forecast && <div>Prognose <span className="font-medium">{e.forecast}</span></div>}
-          {e.previous && <div className="text-muted">Vorher {e.previous}</div>}
-        </div>
-      )}
+      <Figures event={e} />
       {e.impact && (
         <span className="flex w-10 shrink-0 justify-end gap-0.5" title={`Wichtigkeit: ${IMPACTS.find((i) => i.key === e.impact)?.label}`}>
           {[1, 2, 3].map((n) => (
@@ -224,5 +219,67 @@ function EventRow({ event: e }: { event: CalendarEvent }) {
         </span>
       )}
     </li>
+  );
+}
+
+// "254K", "-0.2%", "1.5M" → number (for comparing actual and forecast)
+function parseFigure(v?: string): number | undefined {
+  const m = v?.replace(",", ".").match(/^([<>]?)\s*(-?\d+(?:\.\d+)?)\s*([KMBT%]?)/i);
+  if (!m) return undefined;
+  const mult = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[m[3].toUpperCase() as "K"] ?? 1;
+  return Number(m[2]) * mult;
+}
+
+function Figures({ event: e }: { event: CalendarEvent }) {
+  if (e.type === "earnings" && e.epsActual != null) {
+    const beat = e.epsEstimate == null ? undefined : e.epsActual >= e.epsEstimate;
+    return (
+      <div className="grid shrink-0 grid-cols-[auto_auto] gap-x-2 text-right text-xs tabular-nums">
+        <span className="text-muted">EPS Ist</span>
+        <span className={`font-semibold ${beat == null ? "" : beat ? "text-up" : "text-down"}`}>
+          {e.epsActual.toLocaleString("de-DE", { maximumFractionDigits: 2 })}
+          {e.surprisePercent != null && ` (${e.surprisePercent > 0 ? "+" : ""}${e.surprisePercent.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %)`}
+        </span>
+        {e.epsEstimate != null && (
+          <>
+            <span className="text-muted">Erwartet</span>
+            <span>{e.epsEstimate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}</span>
+          </>
+        )}
+      </div>
+    );
+  }
+  if (!e.actual && !e.forecast && !e.previous) return null;
+
+  const actual = parseFigure(e.actual);
+  const forecast = parseFigure(e.forecast);
+  const diff = actual != null && forecast != null ? Math.sign(actual - forecast) : undefined;
+  return (
+    <div className="grid shrink-0 grid-cols-[auto_auto] gap-x-2 text-right text-xs tabular-nums">
+      {e.actual && (
+        <>
+          <span className="text-muted">Ist</span>
+          <span
+            className={`font-semibold ${diff == null || diff === 0 ? "" : diff > 0 ? "text-up" : "text-down"}`}
+            title={diff == null ? undefined : diff > 0 ? "über Prognose" : diff < 0 ? "unter Prognose" : "wie erwartet"}
+          >
+            {diff != null && diff !== 0 && (diff > 0 ? "▲ " : "▼ ")}
+            {e.actual}
+          </span>
+        </>
+      )}
+      {e.forecast && (
+        <>
+          <span className="text-muted">Prognose</span>
+          <span className={e.actual ? "" : "font-medium"}>{e.forecast}</span>
+        </>
+      )}
+      {e.previous && (
+        <>
+          <span className="text-muted">Vorher</span>
+          <span className="text-muted">{e.previous}</span>
+        </>
+      )}
+    </div>
   );
 }
