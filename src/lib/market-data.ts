@@ -36,16 +36,25 @@ export async function getIndexQuote(symbol: string): Promise<IndexQuote> {
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   if (mockEnabled()) return mockIndexQuote(symbol);
 
-  const [quote, candles] = await Promise.all([
-    yahooFinance.quote(symbol),
+  // The chart is required; the quote only refines price and change. Yahoo's
+  // quote endpoint fails for some indices (e.g. ^STOXX50E), so fall back to the
+  // last two daily candles in that case.
+  const [candles, quote] = await Promise.all([
     getCandles(symbol, 400),
+    yahooFinance.quote(symbol).catch((e) => {
+      console.warn(`quote(${symbol}) failed, using chart data:`, e instanceof Error ? e.message : e);
+      return undefined;
+    }),
   ]);
+  const lastClose = candles.at(-1)?.close ?? NaN;
+  const prevClose = candles.at(-2)?.close ?? NaN;
+  const price = quote?.regularMarketPrice ?? lastClose;
   return {
     symbol,
-    price: quote.regularMarketPrice ?? candles.at(-1)?.close ?? NaN,
-    change: quote.regularMarketChange ?? 0,
-    changePercent: quote.regularMarketChangePercent ?? 0,
-    currency: quote.currency,
+    price,
+    change: quote?.regularMarketChange ?? price - prevClose,
+    changePercent: quote?.regularMarketChangePercent ?? (price / prevClose - 1) * 100,
+    currency: quote?.currency,
     candles,
   };
 }

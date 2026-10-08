@@ -48,10 +48,13 @@ async function IndexCard({ index }: { index: IndexDef }) {
   let quote;
   try {
     quote = await getIndexQuote(index.symbol);
-  } catch {
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`getIndexQuote(${index.symbol}) failed:`, message);
     return (
       <CardShell index={index}>
         <p className="mt-4 text-sm text-down">Daten nicht verfügbar.</p>
+        <p className="mt-1 line-clamp-3 text-xs text-muted">{message}</p>
       </CardShell>
     );
   }
