@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { getStock } from "@/lib/market-data";
 import { rate, type Category } from "@/lib/rating";
@@ -42,6 +43,11 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold">{stock.name}</h1>
             <WatchStar symbol={stock.symbol} withLabel />
+            {!stock.symbol.includes(".") && (
+              <Link href={`/optionen/${encodeURIComponent(stock.symbol)}`} className="rounded-md border border-border px-3 py-1.5 text-sm text-muted hover:bg-border/40 hover:text-foreground">
+                Optionsanalyse →
+              </Link>
+            )}
           </div>
           <p className="text-sm text-muted">
             {stock.symbol}

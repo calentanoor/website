@@ -22,6 +22,10 @@ Produktiv: `npm run build && npm start`.
 - **Kalender** (`/kalender`): Konjunkturdaten (ForexFactory-Feed, aktuelle und nächste Woche),
   Fed/EZB-Termine (`src/lib/calendar.ts`, von Hand gepflegt), Optionsverfälle (berechnet),
   Quartalszahlen und Dividenden aller Indexwerte
+- **Optionen** (`/optionen/[symbol]`, nur US-Werte): erwarteter Kursverlauf (IV-Kegel 1σ/2σ),
+  Expected Move je Verfall, Max Pain, Call-/Put-Walls, Gamma-Exposure (GEX) mit Gamma-Flip,
+  Volatilitäts-Smile, Laufzeitstruktur, IV vs. realisierte Vola, Skew und automatische Einordnung.
+  Greeks werden per Black-Scholes selbst berechnet (`src/lib/options-math.ts`).
 - **Aktie** (`/stock/[symbol]`): Chart (Intraday, 30 Tage, 1 Jahr, 5 Jahre), Rating-Details, Termine
 
 Watchlist und gespeicherte Ansichten liegen im `localStorage` des Browsers.
