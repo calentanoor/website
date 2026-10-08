@@ -22,6 +22,10 @@ Produktiv: `npm run build && npm start`.
 - **Kalender** (`/kalender`): Konjunkturdaten (ForexFactory-Feed, aktuelle und nächste Woche),
   Fed/EZB-Termine (`src/lib/calendar.ts`, von Hand gepflegt), Optionsverfälle (berechnet),
   Quartalszahlen und Dividenden aller Indexwerte
+- **Formationen** (`/formationen`): Scanner für Chartformationen (`src/lib/patterns.ts`) –
+  Doppelboden/-top, (inverse) SKS, Dreiecke, Keile, Trendkanäle, Range, Flaggen,
+  Ausbrüche aus Unterstützung/Widerstand; mit Auslöser, Kursziel, Stopp, Konfidenz und
+  Optionsidee. Formationen werden auch im Chart der Detailseite eingezeichnet.
 - **Optionen** (`/optionen/[symbol]`, nur US-Werte): erwarteter Kursverlauf (IV-Kegel 1σ/2σ),
   Expected Move je Verfall, Max Pain, Call-/Put-Walls, Gamma-Exposure (GEX) mit Gamma-Flip,
   Volatilitäts-Smile, Laufzeitstruktur, IV vs. realisierte Vola, Skew und automatische Einordnung.

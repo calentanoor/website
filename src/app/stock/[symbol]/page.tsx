@@ -8,6 +8,8 @@ import { ScoreBadge, ScoreBar } from "@/components/ScoreBadge";
 import { SignalList } from "@/components/SignalList";
 import { PriceChart } from "@/components/PriceChart";
 import { WatchStar } from "@/components/WatchStar";
+import { PatternCard } from "@/components/PatternCard";
+import { detectPatterns } from "@/lib/patterns";
 
 export default function StockPage({ params }: PageProps<"/stock/[symbol]">) {
   return (
@@ -34,6 +36,8 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
   }
 
   const rating = rate(stock.fundamentals, stock.candles, stock.price, stock.sector);
+  const { patterns, levels } = detectPatterns(stock.candles);
+  const hasOptions = !stock.symbol.includes(".");
   const f = stock.fundamentals;
 
   return (
@@ -43,7 +47,7 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold">{stock.name}</h1>
             <WatchStar symbol={stock.symbol} withLabel />
-            {!stock.symbol.includes(".") && (
+            {hasOptions && (
               <Link href={`/optionen/${encodeURIComponent(stock.symbol)}`} className="rounded-md border border-border px-3 py-1.5 text-sm text-muted hover:bg-border/40 hover:text-foreground">
                 Optionsanalyse →
               </Link>
@@ -75,10 +79,32 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
 
       <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
         <h2 className="mb-3 font-medium">Chart</h2>
-        <PriceChart symbol={stock.symbol} initial={stock.candles} />
+        <PriceChart symbol={stock.symbol} initial={stock.candles} patterns={patterns} levels={levels} />
         <div className="mt-3">
           <SignalList signals={rating.signals} />
         </div>
+      </section>
+
+      <section id="formationen" className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold">Chartformationen</h2>
+          {levels.length > 0 && (
+            <p className="text-sm text-muted">
+              Unterstützungen:{" "}
+              {levels.filter((l) => l.kind === "support").slice(0, 3).map((l) => `${formatNumber(l.price)} (×${l.touches})`).join(", ") || "–"} · Widerstände:{" "}
+              {levels.filter((l) => l.kind === "resistance").slice(0, 3).map((l) => `${formatNumber(l.price)} (×${l.touches})`).join(", ") || "–"}
+            </p>
+          )}
+        </div>
+        {patterns.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-muted">Aktuell keine klare Formation erkannt.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {patterns.map((p) => (
+              <PatternCard key={p.id} pattern={p} price={stock.price} optionsSymbol={hasOptions ? stock.symbol : undefined} />
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">

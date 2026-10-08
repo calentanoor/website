@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CandlestickSeries, ColorType, HistogramSeries, LineSeries, createChart, type UTCTimestamp } from "lightweight-charts";
+import { CandlestickSeries, ColorType, HistogramSeries, LineSeries, LineStyle, createChart, createSeriesMarkers, type ISeriesApi, type IChartApi, type UTCTimestamp } from "lightweight-charts";
 import { sma } from "@/lib/indicators";
 import { changeColor, formatNumber, formatPercent } from "@/lib/format";
 import type { Candle } from "@/lib/types";
+import type { Level, Pattern } from "@/lib/patterns";
 
 type Range = "1d" | "1mo" | "1y" | "5y";
 
@@ -36,7 +37,45 @@ function visibleFrom(range: Range, candles: Candle[]) {
   return Math.max(0, candles.findIndex((c) => c.time >= start));
 }
 
-export function PriceChart({ symbol, initial }: { symbol: string; initial: Candle[] }) {
+const DIRECTION_COLOR = { bullish: "#12955f", bearish: "#d23c3c", neutral: "#2b6ef2" };
+
+// Pattern lines, target segments, labels and support/resistance levels
+// (computed on daily candles, so only drawn in the 1-year view).
+function drawPatterns(chart: IChartApi, candles: ISeriesApi<"Candlestick">, patterns: Pattern[], levels: Level[]) {
+  const ts = (s: number) => s as UTCTimestamp;
+  for (const p of patterns) {
+    const color = DIRECTION_COLOR[p.direction];
+    for (const l of p.lines) {
+      if (l.to.time <= l.from.time) continue;
+      chart
+        .addSeries(LineSeries, { color, lineWidth: l.kind === "pattern" ? 2 : 1, lineStyle: l.kind === "trigger" ? LineStyle.Dashed : LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+        .setData([{ time: ts(l.from.time), value: l.from.price }, { time: ts(l.to.time), value: l.to.price }]);
+    }
+    if (p.target) {
+      chart
+        .addSeries(LineSeries, { color, lineWidth: 1, lineStyle: LineStyle.Dotted, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: "Ziel" })
+        .setData([{ time: ts(p.endTime), value: p.target }, { time: ts(p.endTime + 20 * 86400), value: p.target }]);
+    }
+  }
+  createSeriesMarkers(
+    candles,
+    patterns
+      .map((p) => ({
+        time: ts(p.endTime),
+        position: p.direction === "bearish" ? ("aboveBar" as const) : ("belowBar" as const),
+        shape: p.direction === "bearish" ? ("arrowDown" as const) : p.direction === "bullish" ? ("arrowUp" as const) : ("circle" as const),
+        color: DIRECTION_COLOR[p.direction],
+        text: p.label,
+      }))
+      .sort((a, b) => a.time - b.time),
+  );
+  for (const l of levels) {
+    candles.createPriceLine({ price: l.price, color: l.kind === "support" ? "#12955f99" : "#d23c3c99", lineWidth: 1, lineStyle: LineStyle.SparseDotted, axisLabelVisible: false, title: `${l.kind === "support" ? "U" : "W"} ×${l.touches}` });
+  }
+}
+
+export function PriceChart({ symbol, initial, patterns = [], levels = [] }: { symbol: string; initial: Candle[]; patterns?: Pattern[]; levels?: Level[] }) {
+  const [showPatterns, setShowPatterns] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<Range>("1y");
   const [data, setData] = useState<Partial<Record<Range, Candle[]>>>({ "1y": initial });
@@ -78,15 +117,14 @@ export function PriceChart({ symbol, initial }: { symbol: string; initial: Candl
     const offset = intraday ? -new Date().getTimezoneOffset() * 60 : 0;
     const time = (c: Candle) => (c.time + offset) as UTCTimestamp;
 
-    chart
-      .addSeries(CandlestickSeries, {
-        upColor: v("--up"),
-        downColor: v("--down"),
-        borderVisible: false,
-        wickUpColor: v("--up"),
-        wickDownColor: v("--down"),
-      })
-      .setData(candles.map((c) => ({ time: time(c), open: c.open, high: c.high, low: c.low, close: c.close })));
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: v("--up"),
+      downColor: v("--down"),
+      borderVisible: false,
+      wickUpColor: v("--up"),
+      wickDownColor: v("--down"),
+    });
+    candleSeries.setData(candles.map((c) => ({ time: time(c), open: c.open, high: c.high, low: c.low, close: c.close })));
 
     const closes = candles.map((c) => c.close);
     for (const o of OVERLAYS[range] ?? []) {
@@ -100,11 +138,17 @@ export function PriceChart({ symbol, initial }: { symbol: string; initial: Candl
     chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volume.setData(candles.map((c) => ({ time: time(c), value: c.volume, color: c.close >= c.open ? `${v("--up")}55` : `${v("--down")}55` })));
 
+    if (range === "1y" && showPatterns) {
+      drawPatterns(chart, candleSeries, patterns.slice(0, 3), levels.slice(0, 4));
+    }
+
     const from = visibleFrom(range, candles);
-    if (from > 0) chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 2 });
+    // Extra space on the right for pattern labels and target segments
+    const right = range === "1y" && showPatterns && patterns.length ? 18 : 2;
+    if (from > 0) chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + right });
     else chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, range, intraday]);
+  }, [candles, range, intraday, showPatterns, patterns, levels]);
 
   const from = candles ? visibleFrom(range, candles) : 0;
   const perf = candles?.length ? candles[candles.length - 1].close / (range === "1d" ? candles[0].open : candles[from].close) - 1 : undefined;
@@ -132,6 +176,12 @@ export function PriceChart({ symbol, initial }: { symbol: string; initial: Candl
         <div className="flex items-center gap-3 text-xs text-muted">
           {perf != null && <span className={`text-sm font-medium ${changeColor(perf)}`}>{formatPercent(perf * 100)}</span>}
           <span>{active.caption}</span>
+          {range === "1y" && (patterns.length > 0 || levels.length > 0) && (
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" checked={showPatterns} onChange={(e) => setShowPatterns(e.target.checked)} className="accent-[var(--accent)]" />
+              Formationen
+            </label>
+          )}
           {OVERLAYS[range]?.map((o) => (
             <span key={o.label} style={{ color: o.color }}>
               — {o.label}
