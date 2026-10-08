@@ -2,13 +2,11 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getIndex } from "@/lib/indices";
-import { getStockSafe } from "@/lib/market-data";
-import { analystScore, rate, recommendationLabel } from "@/lib/rating";
-import { roc } from "@/lib/indicators";
+import { buildRows } from "@/lib/screener";
+import { ScreenerTable } from "@/components/ScreenerTable";
 
 // Only called after connection(), so the value is per request.
 const requestTime = () => Date.now();
-import { ScreenerTable, type ScreenerRow } from "@/components/ScreenerTable";
 
 export default function IndexPage({ params }: PageProps<"/index/[id]">) {
   return (
@@ -50,33 +48,5 @@ async function IndexScreener({ params }: { params: Promise<{ id: string }> }) {
 
 async function Rows({ symbols }: { symbols: string[] }) {
   await connection();
-  const results = await Promise.all(symbols.map(getStockSafe));
-  const rows: ScreenerRow[] = results.map((s) => {
-    if ("error" in s) return { symbol: s.symbol, name: s.symbol, error: s.error, signals: [] };
-    const r = rate(s.fundamentals, s.candles, s.price, s.sector);
-    const closes = s.candles.map((c) => c.close);
-    return {
-      symbol: s.symbol,
-      name: s.name,
-      sector: s.sector,
-      currency: s.currency,
-      price: s.price,
-      changePercent: s.changePercent,
-      perf1m: roc(closes, 21) * 100,
-      forwardPE: s.fundamentals.forwardPE,
-      dividendYield: s.fundamentals.dividendYield == null ? undefined : s.fundamentals.dividendYield * 100,
-      earningsDate: s.events.earningsDate,
-      analysts: s.fundamentals.numberOfAnalystOpinions,
-      targetPrice: s.fundamentals.targetMeanPrice,
-      targetUpside: s.fundamentals.targetMeanPrice ? (s.fundamentals.targetMeanPrice / s.price - 1) * 100 : undefined,
-      analystScore: analystScore(s.fundamentals.recommendationMean),
-      recommendation: recommendationLabel(s.fundamentals.recommendationMean),
-      recommendationMean: s.fundamentals.recommendationMean,
-      fundamental: r.fundamental,
-      technical: r.technical,
-      total: r.total,
-      signals: r.signals,
-    };
-  });
-  return <ScreenerTable rows={rows} now={requestTime()} />;
+  return <ScreenerTable rows={await buildRows(symbols)} now={requestTime()} />;
 }

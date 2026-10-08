@@ -36,7 +36,7 @@ export function ScoreBar({ score, className = "" }: { score: number | undefined;
 // Score with a small bar underneath – used for the headline "Gesamt" column.
 export function ScoreMeter({ score }: { score: number | undefined }) {
   return (
-    <div className="ml-auto flex w-14 flex-col items-end gap-1">
+    <div className="ml-auto flex w-11 flex-col items-end gap-1">
       <span className={`text-sm font-semibold tabular-nums ${scoreTone(score) === "none" ? "text-muted" : ""}`}>{score ?? "–"}</span>
       <ScoreBar score={score} />
     </div>

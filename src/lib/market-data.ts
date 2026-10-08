@@ -152,3 +152,18 @@ export async function getStockSafe(symbol: string): Promise<StockData | { symbol
     return { symbol, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+export type SearchResult = { symbol: string; name: string; exchange?: string; type?: string };
+
+export async function searchSymbols(query: string): Promise<SearchResult[]> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 3600, expire: 86400 });
+  if (mockEnabled()) return [{ symbol: query.toUpperCase(), name: `${query.toUpperCase()} Demo AG`, exchange: "DEMO", type: "EQUITY" }];
+
+  const res = await yahooFinance.search(query, { quotesCount: 8, newsCount: 0 });
+  return res.quotes.flatMap((q) =>
+    "symbol" in q && typeof q.symbol === "string" && (q.quoteType === "EQUITY" || q.quoteType === "ETF")
+      ? [{ symbol: q.symbol, name: String(q.longname ?? q.shortname ?? q.symbol), exchange: q.exchDisp as string | undefined, type: q.quoteType as string }]
+      : [],
+  );
+}

@@ -13,6 +13,19 @@ MOCK_DATA=1 npm run dev   # synthetische Demodaten, kein Internet nötig
 
 Produktiv: `npm run build && npm start`.
 
+## Seiten
+
+- **Übersicht**: Index-Kacheln mit Technik-Rating
+- **Index-Screener** (`/index/[id]`): Tabelle aller Mitglieder mit Ratings, Analysten-Konsens, Signalen
+- **Eigene Ansicht** (`/screener`): Universum + frei kombinierbare Kennzahlen-Filter, speicherbare Ansichten
+- **Watchlist** (`/watchlist`): per Stern markierte oder gesuchte Werte
+- **Kalender** (`/kalender`): Konjunkturdaten (ForexFactory-Feed, aktuelle und nächste Woche),
+  Fed/EZB-Termine (`src/lib/calendar.ts`, von Hand gepflegt), Optionsverfälle (berechnet),
+  Quartalszahlen und Dividenden aller Indexwerte
+- **Aktie** (`/stock/[symbol]`): Chart (Intraday, 30 Tage, 1 Jahr, 5 Jahre), Rating-Details, Termine
+
+Watchlist und gespeicherte Ansichten liegen im `localStorage` des Browsers.
+
 ## Konfiguration
 
 | Variable        | Wirkung                                                            |

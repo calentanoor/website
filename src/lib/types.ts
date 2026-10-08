@@ -1,3 +1,5 @@
+import type { Signal } from "./rating";
+
 export type Candle = {
   time: number; // unix seconds
   open: number;
@@ -54,4 +56,35 @@ export type IndexQuote = {
   changePercent: number;
   currency?: string;
   candles: Candle[];
+};
+
+// One row of the screener tables (serialisable, shared by server and client).
+export type ScreenerRow = {
+  symbol: string;
+  name: string;
+  sector?: string;
+  currency?: string;
+  price?: number;
+  changePercent?: number;
+  perf1m?: number;
+  perf6m?: number;
+  marketCap?: number;
+  forwardPE?: number;
+  pegRatio?: number;
+  dividendYield?: number;
+  returnOnEquity?: number;
+  revenueGrowth?: number;
+  rsi?: number;
+  earningsDate?: number;
+  analysts?: number;
+  targetPrice?: number;
+  targetUpside?: number;
+  analystScore?: number;
+  recommendation?: string;
+  recommendationMean?: number;
+  fundamental?: number;
+  technical?: number;
+  total?: number;
+  signals: Signal[];
+  error?: string;
 };

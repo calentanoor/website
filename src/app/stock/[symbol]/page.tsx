@@ -6,6 +6,7 @@ import { changeColor, formatBig, formatDate, formatNumber, formatPercent } from 
 import { ScoreBadge, ScoreBar } from "@/components/ScoreBadge";
 import { SignalList } from "@/components/SignalList";
 import { PriceChart } from "@/components/PriceChart";
+import { WatchStar } from "@/components/WatchStar";
 
 export default function StockPage({ params }: PageProps<"/stock/[symbol]">) {
   return (
@@ -38,7 +39,10 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{stock.name}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold">{stock.name}</h1>
+            <WatchStar symbol={stock.symbol} withLabel />
+          </div>
           <p className="text-sm text-muted">
             {stock.symbol}
             {stock.sector ? ` · ${stock.sector}` : ""}

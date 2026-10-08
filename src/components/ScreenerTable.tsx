@@ -2,54 +2,35 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { Signal } from "@/lib/rating";
+import type { ScreenerRow } from "@/lib/types";
 import { changeColor, formatDate, formatNumber, formatPercent } from "@/lib/format";
 import { ScoreBadge, ScoreMeter } from "./ScoreBadge";
 import { SignalList } from "./SignalList";
+import { WatchStar } from "./WatchStar";
 
-export type ScreenerRow = {
-  symbol: string;
-  name: string;
-  sector?: string;
-  currency?: string;
-  price?: number;
-  changePercent?: number;
-  perf1m?: number;
-  forwardPE?: number;
-  dividendYield?: number;
-  earningsDate?: number;
-  analysts?: number;
-  targetPrice?: number;
-  targetUpside?: number;
-  analystScore?: number;
-  recommendation?: string;
-  recommendationMean?: number;
-  fundamental?: number;
-  technical?: number;
-  total?: number;
-  signals: Signal[];
-  error?: string;
-};
+export type { ScreenerRow };
 
 type SortKey = "name" | "price" | "changePercent" | "perf1m" | "forwardPE" | "dividendYield" | "earningsDate" | "analysts" | "targetUpside" | "analystScore" | "fundamental" | "technical" | "total";
 
-const columns: { key: SortKey; label: string; align?: "right" }[] = [
+const columns: { key: SortKey; label: string; title?: string; align?: "right" }[] = [
   { key: "name", label: "Aktie" },
   { key: "price", label: "Kurs", align: "right" },
-  { key: "changePercent", label: "Tag", align: "right" },
-  { key: "perf1m", label: "1 Mon.", align: "right" },
-  { key: "forwardPE", label: "KGV erw.", align: "right" },
-  { key: "dividendYield", label: "Dividende", align: "right" },
-  { key: "earningsDate", label: "Zahlen", align: "right" },
-  { key: "analysts", label: "Analysten", align: "right" },
-  { key: "targetUpside", label: "Kursziel Ø", align: "right" },
-  { key: "analystScore", label: "Konsens", align: "right" },
-  { key: "fundamental", label: "Fundamental", align: "right" },
-  { key: "technical", label: "Technik", align: "right" },
-  { key: "total", label: "Gesamt", align: "right" },
+  { key: "changePercent", label: "Tag", title: "Veränderung heute", align: "right" },
+  { key: "perf1m", label: "1 M", title: "Performance 1 Monat", align: "right" },
+  { key: "forwardPE", label: "KGV", title: "Erwartetes KGV", align: "right" },
+  { key: "dividendYield", label: "Div.", title: "Dividendenrendite", align: "right" },
+  { key: "earningsDate", label: "Zahlen", title: "Nächste Quartalszahlen", align: "right" },
+  { key: "analysts", label: "Anz.", title: "Anzahl Analysten", align: "right" },
+  { key: "targetUpside", label: "Ziel Ø", title: "Abstand zum durchschnittlichen Kursziel", align: "right" },
+  { key: "analystScore", label: "Kons.", title: "Analysten-Konsens als Score (0–100)", align: "right" },
+  { key: "fundamental", label: "Fund.", title: "Fundamental-Score", align: "right" },
+  { key: "technical", label: "Tech.", title: "Technik-Score", align: "right" },
+  { key: "total", label: "Gesamt", title: "Gesamt-Score", align: "right" },
 ];
 
-export function ScreenerTable({ rows, now }: { rows: ScreenerRow[]; now: number }) {
+export function ScreenerTable({ rows, now: nowProp, showStats = true }: { rows: ScreenerRow[]; now?: number; showStats?: boolean }) {
+  const [mountTime] = useState(() => Date.now());
+  const now = nowProp ?? mountTime;
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "total", desc: true });
   const [query, setQuery] = useState("");
   const [minScore, setMinScore] = useState(0);
@@ -93,12 +74,12 @@ export function ScreenerTable({ rows, now }: { rows: ScreenerRow[]; now: number 
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {showStats && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Ø Gesamt-Score" value={stats.avg ?? "–"} />
         <Stat label="mit bullishen Signalen" value={stats.bullish} tone="text-up" />
         <Stat label="mit bearishen Signalen" value={stats.bearish} tone="text-down" />
         <Stat label="Zahlen in den nächsten 14 Tagen" value={stats.earnings} />
-      </div>
+      </div>}
 
       <div className="rounded-xl border border-border bg-surface shadow-sm">
         <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 text-sm">
@@ -137,57 +118,60 @@ export function ScreenerTable({ rows, now }: { rows: ScreenerRow[]; now: number 
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1250px] text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead className="text-[11px] uppercase tracking-wide text-muted">
               <tr className="border-b border-border">
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    className={`cursor-pointer select-none whitespace-nowrap px-3 py-2.5 font-medium hover:text-foreground ${c.align === "right" ? "text-right" : "text-left"} ${c.key === "name" ? "pl-4" : ""}`}
+                    title={c.title}
+                    className={`cursor-pointer select-none whitespace-nowrap px-2 py-2.5 font-medium hover:text-foreground ${c.align === "right" ? "text-right" : "text-left"} ${c.key === "name" ? "pl-4" : ""}`}
                     onClick={() => toggle(c.key)}
                   >
                     {c.label}
                     <span className={`ml-0.5 inline-block w-2 ${sort.key === c.key ? "text-accent" : "opacity-0"}`}>{sort.desc ? "↓" : "↑"}</span>
                   </th>
                 ))}
-                <th className="whitespace-nowrap px-3 py-2.5 pr-4 text-left font-medium">Signale</th>
+                <th className="whitespace-nowrap px-2 py-2.5 pr-4 text-left font-medium">Signale</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {visible.map((r) => (
                 <tr key={r.symbol} className="transition-colors hover:bg-accent/[0.04]">
-                  <td className="max-w-72 py-2.5 pl-4 pr-3">
+                  <td className="max-w-60 py-2.5 pl-4 pr-2">
+                    <div className="flex items-center gap-1.5">
+                    <WatchStar symbol={r.symbol} />
                     <Link href={`/stock/${encodeURIComponent(r.symbol)}`} className="block truncate font-medium hover:text-accent">
                       {r.name}
                     </Link>
-                    <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 truncate pl-6 text-xs text-muted">
                       <span className="font-mono text-[11px]">{r.symbol}</span>
                       {r.sector && <span className="truncate">· {r.sector}</span>}
                     </div>
                     {r.error && <div className="truncate text-xs text-down" title={r.error}>Keine Daten: {r.error}</div>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right">
                     <div className="tabular-nums">{r.price != null ? formatNumber(r.price) : "–"}</div>
                     <div className="text-[11px] text-muted">{r.currency}</div>
                   </td>
-                  <td className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${changeColor(r.changePercent)}`}>{formatPercent(r.changePercent)}</td>
-                  <td className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${changeColor(r.perf1m)}`}>{formatPercent(r.perf1m, 1)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{formatNumber(r.forwardPE, 1)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{r.dividendYield ? `${formatNumber(r.dividendYield, 1)} %` : "–"}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs tabular-nums text-muted">{formatDate(r.earningsDate)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{r.analysts ?? "–"}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right" title={r.targetPrice ? `Ø Kursziel ${formatNumber(r.targetPrice)} ${r.currency ?? ""}` : undefined}>
+                  <td className={`whitespace-nowrap px-2 py-2.5 text-right tabular-nums ${changeColor(r.changePercent)}`}>{formatPercent(r.changePercent)}</td>
+                  <td className={`whitespace-nowrap px-2 py-2.5 text-right tabular-nums ${changeColor(r.perf1m)}`}>{formatPercent(r.perf1m, 1)}</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums">{formatNumber(r.forwardPE, 1)}</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums">{r.dividendYield ? `${formatNumber(r.dividendYield, 1)} %` : "–"}</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs tabular-nums text-muted">{formatDate(r.earningsDate)}</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right tabular-nums">{r.analysts ?? "–"}</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right" title={r.targetPrice ? `Ø Kursziel ${formatNumber(r.targetPrice)} ${r.currency ?? ""}` : undefined}>
                     <div className={`tabular-nums ${changeColor(r.targetUpside)}`}>{formatPercent(r.targetUpside, 1)}</div>
                     <div className="text-[11px] tabular-nums text-muted">{r.targetPrice ? formatNumber(r.targetPrice) : ""}</div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right" title={r.recommendationMean ? `Ø Rating ${formatNumber(r.recommendationMean, 2)} (1 = Stark kaufen, 5 = Stark verkaufen)` : undefined}>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right" title={r.recommendationMean ? `${r.recommendation}: Ø Rating ${formatNumber(r.recommendationMean, 2)} (1 = Stark kaufen, 5 = Stark verkaufen)` : undefined}>
                     <ScoreBadge score={r.analystScore} />
-                    <div className="mt-0.5 text-[11px] text-muted">{r.recommendation ?? ""}</div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreBadge score={r.fundamental} /></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreBadge score={r.technical} /></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreMeter score={r.total} /></td>
-                  <td className="py-2.5 pl-3 pr-4"><SignalList signals={r.signals} compact /></td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right"><ScoreBadge score={r.fundamental} /></td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right"><ScoreBadge score={r.technical} /></td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right"><ScoreMeter score={r.total} /></td>
+                  <td className="py-2.5 pl-2 pr-4"><SignalList signals={r.signals} compact /></td>
                 </tr>
               ))}
             </tbody>

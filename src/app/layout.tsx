@@ -14,6 +14,9 @@ export const metadata: Metadata = {
 const navLinks = [
   { href: "/", label: "Übersicht" },
   ...INDICES.filter((i) => i.constituents).map((i) => ({ href: `/index/${i.id}`, label: i.name })),
+  { href: "/screener", label: "Eigene Ansicht" },
+  { href: "/watchlist", label: "★ Watchlist" },
+  { href: "/kalender", label: "Kalender" },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
