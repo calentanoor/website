@@ -14,8 +14,8 @@ export default function Home() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Indizes</h1>
-        <p className="text-sm text-muted">
+        <h1 className="text-2xl font-semibold tracking-tight">Indizes</h1>
+        <p className="mt-1 text-sm text-muted">
           Technisches Rating je Index (0–100). Für Indizes mit hinterlegten Mitgliedern führt ein Klick zum Screener.
         </p>
       </div>
@@ -32,10 +32,10 @@ export default function Home() {
 
 function CardShell({ index, children }: { index: IndexDef; children?: React.ReactNode }) {
   const body = (
-    <div className="h-full rounded-lg border border-border bg-surface p-4 transition-colors hover:border-accent/60">
+    <div className="h-full rounded-xl border border-border bg-surface shadow-sm p-4 flex flex-col transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-md">
       <div className="flex items-baseline justify-between">
         <h2 className="font-medium">{index.name}</h2>
-        <span className="text-xs text-muted">{index.region}</span>
+        <span className="rounded-full bg-border/60 px-2 py-0.5 text-[11px] text-muted">{index.region}</span>
       </div>
       {children ?? <div className="mt-4 h-28 animate-pulse rounded bg-border/50" />}
     </div>
@@ -90,8 +90,8 @@ async function IndexCard({ index }: { index: IndexDef }) {
           </dd>
         </div>
       </dl>
-      <div className="mt-3">
-        <SignalList signals={signals} compact />
+      <div className="mt-auto pt-3">
+        <SignalList signals={signals} compact max={3} />
       </div>
     </CardShell>
   );

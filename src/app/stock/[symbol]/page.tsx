@@ -65,7 +65,7 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
         </div>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Chart (Tageskerzen)</h2>
           <span className="text-xs text-muted">
@@ -90,7 +90,7 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-lg border border-border bg-surface p-4">
+        <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
           <h2 className="mb-3 font-medium">Kennzahlen</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <KeyValue label="Marktkapitalisierung" value={formatBig(stock.marketCap)} />
@@ -102,7 +102,7 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
             <KeyValue label="Kursziel (Ø)" value={f.targetMeanPrice ? `${formatNumber(f.targetMeanPrice)} ${stock.currency}` : "–"} />
           </dl>
         </section>
-        <section className="rounded-lg border border-border bg-surface p-4">
+        <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
           <h2 className="mb-3 font-medium">Termine</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <KeyValue label="Nächste Quartalszahlen" value={formatDate(stock.events.earningsDate)} />
@@ -126,7 +126,7 @@ function KeyValue({ label, value }: { label: string; value: string }) {
 
 function CategoryPanel({ title, score, categories }: { title: string; score?: number; categories: Category[] }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-medium">{title}</h2>
         <ScoreBadge score={score} />

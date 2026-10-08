@@ -21,6 +21,7 @@ export type Category = {
 
 export type Signal = {
   label: string;
+  short: string;
   tone: "bullish" | "bearish" | "neutral";
 };
 
@@ -151,30 +152,30 @@ export function rateTechnicals(candles: Candle[]): { categories: Category[]; sig
     const ago = sma50.length - 1 - crossIndex.i;
     signals.push(
       crossIndex.above
-        ? { label: `Golden Cross (SMA 50/200) vor ${ago} Tagen`, tone: "bullish" }
-        : { label: `Death Cross (SMA 50/200) vor ${ago} Tagen`, tone: "bearish" },
+        ? { label: `Golden Cross (SMA 50/200) vor ${ago} Tagen`, short: `Golden Cross ${ago}T`, tone: "bullish" }
+        : { label: `Death Cross (SMA 50/200) vor ${ago} Tagen`, short: `Death Cross ${ago}T`, tone: "bearish" },
     );
   }
-  if (rsi14 > 70) signals.push({ label: `RSI überkauft (${rsi14.toFixed(0)})`, tone: "bearish" });
-  if (rsi14 < 30) signals.push({ label: `RSI überverkauft (${rsi14.toFixed(0)})`, tone: "bullish" });
-  if (hist > 0 && histPrev <= 0) signals.push({ label: "MACD kreuzt Signallinie nach oben", tone: "bullish" });
-  if (hist < 0 && histPrev >= 0) signals.push({ label: "MACD kreuzt Signallinie nach unten", tone: "bearish" });
-  if (price >= high52 * 0.98) signals.push({ label: "Nahe 52-Wochen-Hoch", tone: "bullish" });
-  if (price <= low52 * 1.02) signals.push({ label: "Nahe 52-Wochen-Tief", tone: "bearish" });
+  if (rsi14 > 70) signals.push({ label: `RSI überkauft (${rsi14.toFixed(0)})`, short: "RSI überkauft", tone: "bearish" });
+  if (rsi14 < 30) signals.push({ label: `RSI überverkauft (${rsi14.toFixed(0)})`, short: "RSI überverkauft", tone: "bullish" });
+  if (hist > 0 && histPrev <= 0) signals.push({ label: "MACD kreuzt Signallinie nach oben", short: "MACD ↑", tone: "bullish" });
+  if (hist < 0 && histPrev >= 0) signals.push({ label: "MACD kreuzt Signallinie nach unten", short: "MACD ↓", tone: "bearish" });
+  if (price >= high52 * 0.98) signals.push({ label: "Nahe 52-Wochen-Hoch", short: "52W-Hoch", tone: "bullish" });
+  if (price <= low52 * 1.02) signals.push({ label: "Nahe 52-Wochen-Tief", short: "52W-Tief", tone: "bearish" });
 
   const prior20High = Math.max(...high.slice(-21, -1));
   const prior20Low = Math.min(...low.slice(-21, -1));
-  if (price > prior20High) signals.push({ label: "Ausbruch über 20-Tage-Hoch", tone: "bullish" });
-  if (price < prior20Low) signals.push({ label: "Bruch unter 20-Tage-Tief", tone: "bearish" });
+  if (price > prior20High) signals.push({ label: "Ausbruch über 20-Tage-Hoch", short: "Ausbruch 20T", tone: "bullish" });
+  if (price < prior20Low) signals.push({ label: "Bruch unter 20-Tage-Tief", short: "Bruch 20T-Tief", tone: "bearish" });
 
   const bw = bollingerWidth(close).slice(-126).filter((v) => !Number.isNaN(v));
   if (bw.length > 60) {
     const sorted = [...bw].sort((a, b) => a - b);
     if (last(bw) <= sorted[Math.floor(sorted.length * 0.1)])
-      signals.push({ label: "Bollinger-Squeeze (Volatilität eng – Ausbruch möglich)", tone: "neutral" });
+      signals.push({ label: "Bollinger-Squeeze (Volatilität eng – Ausbruch möglich)", short: "Squeeze", tone: "neutral" });
   }
   if (Number.isFinite(s50) && Math.abs(price / s50 - 1) < 0.01 && price > s200)
-    signals.push({ label: "Test der SMA 50 im Aufwärtstrend", tone: "neutral" });
+    signals.push({ label: "Test der SMA 50 im Aufwärtstrend", short: "SMA-50-Test", tone: "neutral" });
 
   return { categories, signals };
 }

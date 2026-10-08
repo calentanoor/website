@@ -5,6 +5,9 @@ import { getIndex } from "@/lib/indices";
 import { getStockSafe } from "@/lib/market-data";
 import { rate } from "@/lib/rating";
 import { roc } from "@/lib/indicators";
+
+// Only called after connection(), so the value is per request.
+const requestTime = () => Date.now();
 import { ScreenerTable, type ScreenerRow } from "@/components/ScreenerTable";
 
 export default function IndexPage({ params }: PageProps<"/index/[id]">) {
@@ -21,20 +24,22 @@ async function IndexScreener({ params }: { params: Promise<{ id: string }> }) {
   if (!index?.constituents) notFound();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{index.name} – Screener</h1>
-        <p className="text-sm text-muted">
-          {index.constituents.length} Werte · Fundamental- und Technik-Rating je 0–100, Gesamt = Mittelwert.
-          Klick auf eine Spalte sortiert.
+        <p className="text-xs font-medium uppercase tracking-wide text-accent">Screener · {index.region}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{index.name}</h1>
+        <p className="mt-1 text-sm text-muted">
+          {index.constituents.length} Werte · Fundamental- und Technik-Rating je 0–100, Gesamt ist der Mittelwert.
+          Spaltenköpfe sortieren, Hover über Signale zeigt Details.
         </p>
       </div>
       <Suspense
         fallback={
-          <p className="text-muted">
+          <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted shadow-sm">
+            <div className="mx-auto mb-3 size-6 animate-spin rounded-full border-2 border-border border-t-accent" />
             Lade und bewerte {index.constituents.length} Aktien … Der erste Aufruf kann bis zu einer Minute dauern,
             danach sind die Daten gecacht.
-          </p>
+          </div>
         }
       >
         <Rows symbols={index.constituents} />
@@ -67,5 +72,5 @@ async function Rows({ symbols }: { symbols: string[] }) {
       signals: r.signals,
     };
   });
-  return <ScreenerTable rows={rows} />;
+  return <ScreenerTable rows={rows} now={requestTime()} />;
 }
