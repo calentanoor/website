@@ -18,6 +18,12 @@ export type ScreenerRow = {
   forwardPE?: number;
   dividendYield?: number;
   earningsDate?: number;
+  analysts?: number;
+  targetPrice?: number;
+  targetUpside?: number;
+  analystScore?: number;
+  recommendation?: string;
+  recommendationMean?: number;
   fundamental?: number;
   technical?: number;
   total?: number;
@@ -25,7 +31,7 @@ export type ScreenerRow = {
   error?: string;
 };
 
-type SortKey = "name" | "price" | "changePercent" | "perf1m" | "forwardPE" | "dividendYield" | "earningsDate" | "fundamental" | "technical" | "total";
+type SortKey = "name" | "price" | "changePercent" | "perf1m" | "forwardPE" | "dividendYield" | "earningsDate" | "analysts" | "targetUpside" | "analystScore" | "fundamental" | "technical" | "total";
 
 const columns: { key: SortKey; label: string; align?: "right" }[] = [
   { key: "name", label: "Aktie" },
@@ -35,6 +41,9 @@ const columns: { key: SortKey; label: string; align?: "right" }[] = [
   { key: "forwardPE", label: "KGV erw.", align: "right" },
   { key: "dividendYield", label: "Dividende", align: "right" },
   { key: "earningsDate", label: "Zahlen", align: "right" },
+  { key: "analysts", label: "Analysten", align: "right" },
+  { key: "targetUpside", label: "Kursziel Ø", align: "right" },
+  { key: "analystScore", label: "Konsens", align: "right" },
   { key: "fundamental", label: "Fundamental", align: "right" },
   { key: "technical", label: "Technik", align: "right" },
   { key: "total", label: "Gesamt", align: "right" },
@@ -128,7 +137,7 @@ export function ScreenerTable({ rows, now }: { rows: ScreenerRow[]; now: number 
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-sm">
+          <table className="w-full min-w-[1250px] text-sm">
             <thead className="text-[11px] uppercase tracking-wide text-muted">
               <tr className="border-b border-border">
                 {columns.map((c) => (
@@ -166,6 +175,15 @@ export function ScreenerTable({ rows, now }: { rows: ScreenerRow[]; now: number 
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{formatNumber(r.forwardPE, 1)}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{r.dividendYield ? `${formatNumber(r.dividendYield, 1)} %` : "–"}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right text-xs tabular-nums text-muted">{formatDate(r.earningsDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{r.analysts ?? "–"}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right" title={r.targetPrice ? `Ø Kursziel ${formatNumber(r.targetPrice)} ${r.currency ?? ""}` : undefined}>
+                    <div className={`tabular-nums ${changeColor(r.targetUpside)}`}>{formatPercent(r.targetUpside, 1)}</div>
+                    <div className="text-[11px] tabular-nums text-muted">{r.targetPrice ? formatNumber(r.targetPrice) : ""}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right" title={r.recommendationMean ? `Ø Rating ${formatNumber(r.recommendationMean, 2)} (1 = Stark kaufen, 5 = Stark verkaufen)` : undefined}>
+                    <ScoreBadge score={r.analystScore} />
+                    <div className="mt-0.5 text-[11px] text-muted">{r.recommendation ?? ""}</div>
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreBadge score={r.fundamental} /></td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreBadge score={r.technical} /></td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right"><ScoreMeter score={r.total} /></td>

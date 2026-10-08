@@ -11,16 +11,15 @@ function seededRandom(seed: string) {
   };
 }
 
-function mockCandles(seed: string, start: number, bars = 400): Candle[] {
+function mockCandles(seed: string, start: number, bars = 400, step = 86400): Candle[] {
   const rnd = seededRandom(seed);
   const drift = (rnd() - 0.45) * 0.002;
   const vol = 0.01 + rnd() * 0.02;
   const candles: Candle[] = [];
   let close = start;
-  const day = 86400;
-  let time = Math.floor(Date.UTC(2026, 9, 7) / 1000) - bars * day * 1.4;
+  let time = Math.floor(Date.UTC(2026, 9, 7, 16) / 1000) - bars * step * (step === 86400 ? 1.4 : 1);
   for (let i = 0; i < bars; i++) {
-    time += day * (i % 5 === 4 ? 3 : 1);
+    time += step * (step === 86400 && i % 5 === 4 ? 3 : 1);
     const open = close;
     close = Math.max(1, open * (1 + drift + (rnd() - 0.5) * 2 * vol));
     const high = Math.max(open, close) * (1 + rnd() * vol);
@@ -82,4 +81,14 @@ export function mockStock(symbol: string): StockData {
     },
     candles,
   };
+}
+
+const mockRange = { "1d": { bars: 102, step: 300 }, "1mo": { bars: 154, step: 3600 }, "1y": { bars: 400, step: 86400 }, "5y": { bars: 260, step: 7 * 86400 } };
+
+export function mockChart(symbol: string, range: keyof typeof mockRange): Candle[] {
+  const { bars, step } = mockRange[range];
+  const end = mockStock(symbol).price;
+  const candles = mockCandles(symbol + range, 100, bars, step);
+  const k = end / candles[candles.length - 1].close;
+  return candles.map((c) => ({ ...c, open: c.open * k, high: c.high * k, low: c.low * k, close: c.close * k }));
 }

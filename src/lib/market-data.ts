@@ -1,7 +1,7 @@
 import "server-only";
 import YahooFinance from "yahoo-finance2";
 import { cacheLife } from "next/cache";
-import { mockIndexQuote, mockStock } from "./mock";
+import { mockChart, mockIndexQuote, mockStock } from "./mock";
 import type { Candle, IndexQuote, StockData } from "./types";
 
 const yahooFinance = new YahooFinance({
@@ -13,10 +13,10 @@ const mockEnabled = () => process.env.MOCK_DATA === "1";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-async function getCandles(symbol: string, days: number): Promise<Candle[]> {
+async function getCandles(symbol: string, days: number, interval: "5m" | "60m" | "1d" | "1wk" = "1d"): Promise<Candle[]> {
   const chart = await yahooFinance.chart(symbol, {
     period1: new Date(Date.now() - days * DAY),
-    interval: "1d",
+    interval,
     return: "array",
   });
   return chart.quotes
@@ -57,6 +57,32 @@ export async function getIndexQuote(symbol: string): Promise<IndexQuote> {
     currency: quote?.currency,
     candles,
   };
+}
+
+export const CHART_RANGES = ["1d", "1mo", "1y", "5y"] as const;
+export type ChartRange = (typeof CHART_RANGES)[number];
+
+// Candles for the chart range switcher. "1y" includes extra history so that
+// the SMA 200 is defined across the whole visible year.
+export async function getChart(symbol: string, range: ChartRange): Promise<Candle[]> {
+  "use cache";
+  cacheLife(range === "1d" ? { stale: 60, revalidate: 60, expire: 600 } : { stale: 300, revalidate: 1800, expire: 86400 });
+  if (mockEnabled()) return mockChart(symbol, range);
+
+  switch (range) {
+    case "1d": {
+      // Last trading session only (period covers weekends and holidays).
+      const candles = await getCandles(symbol, 6, "5m");
+      const lastDay = new Date((candles.at(-1)?.time ?? 0) * 1000).toISOString().slice(0, 10);
+      return candles.filter((c) => new Date(c.time * 1000).toISOString().slice(0, 10) === lastDay);
+    }
+    case "1mo":
+      return getCandles(symbol, 30, "60m");
+    case "1y":
+      return getCandles(symbol, 560, "1d");
+    case "5y":
+      return getCandles(symbol, 5 * 365, "1wk");
+  }
 }
 
 const toMs = (d?: Date) => (d ? d.getTime() : undefined);

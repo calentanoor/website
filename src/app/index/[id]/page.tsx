@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getIndex } from "@/lib/indices";
 import { getStockSafe } from "@/lib/market-data";
-import { rate } from "@/lib/rating";
+import { analystScore, rate, recommendationLabel } from "@/lib/rating";
 import { roc } from "@/lib/indicators";
 
 // Only called after connection(), so the value is per request.
@@ -66,6 +66,12 @@ async function Rows({ symbols }: { symbols: string[] }) {
       forwardPE: s.fundamentals.forwardPE,
       dividendYield: s.fundamentals.dividendYield == null ? undefined : s.fundamentals.dividendYield * 100,
       earningsDate: s.events.earningsDate,
+      analysts: s.fundamentals.numberOfAnalystOpinions,
+      targetPrice: s.fundamentals.targetMeanPrice,
+      targetUpside: s.fundamentals.targetMeanPrice ? (s.fundamentals.targetMeanPrice / s.price - 1) * 100 : undefined,
+      analystScore: analystScore(s.fundamentals.recommendationMean),
+      recommendation: recommendationLabel(s.fundamentals.recommendationMean),
+      recommendationMean: s.fundamentals.recommendationMean,
       fundamental: r.fundamental,
       technical: r.technical,
       total: r.total,

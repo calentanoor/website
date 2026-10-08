@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { getStock } from "@/lib/market-data";
 import { rate, type Category } from "@/lib/rating";
-import { sma } from "@/lib/indicators";
 import { changeColor, formatBig, formatDate, formatNumber, formatPercent } from "@/lib/format";
 import { ScoreBadge, ScoreBar } from "@/components/ScoreBadge";
 import { SignalList } from "@/components/SignalList";
@@ -33,7 +32,6 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
   }
 
   const rating = rate(stock.fundamentals, stock.candles, stock.price, stock.sector);
-  const closes = stock.candles.map((c) => c.close);
   const f = stock.fundamentals;
 
   return (
@@ -66,19 +64,8 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
       </div>
 
       <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Chart (Tageskerzen)</h2>
-          <span className="text-xs text-muted">
-            <span className="text-[#f2a33a]">— SMA 50</span> · <span className="text-[#8b6cf6]">— SMA 200</span>
-          </span>
-        </div>
-        <PriceChart
-          candles={stock.candles}
-          overlays={[
-            { label: "SMA 50", color: "#f2a33a", values: sma(closes, 50) },
-            { label: "SMA 200", color: "#8b6cf6", values: sma(closes, 200) },
-          ]}
-        />
+        <h2 className="mb-3 font-medium">Chart</h2>
+        <PriceChart symbol={stock.symbol} initial={stock.candles} />
         <div className="mt-3">
           <SignalList signals={rating.signals} />
         </div>

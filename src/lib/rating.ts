@@ -85,7 +85,7 @@ export function rateFundamentals(f: Fundamentals, price: number, sector?: string
           { label: "Free Cashflow", value: f.freeCashflow, display: f.freeCashflow == null ? "–" : f.freeCashflow > 0 ? "positiv" : "negativ", score: f.freeCashflow == null ? undefined : f.freeCashflow > 0 ? 100 : 0 },
         ]),
     category("analysts", "Analysten", [
-      { label: "Konsens (1 = Kaufen, 5 = Verkaufen)", value: f.recommendationMean, display: num(f.recommendationMean), score: scale(f.recommendationMean, 4, 1.5) },
+      { label: "Konsens (1 = Kaufen, 5 = Verkaufen)", value: f.recommendationMean, display: num(f.recommendationMean), score: analystScore(f.recommendationMean) },
       { label: "Kursziel-Potenzial", value: upside, display: pct(upside), score: scale(upside, -0.1, 0.25) },
     ]),
   ];
@@ -194,3 +194,15 @@ export function rate(f: Fundamentals, candles: Candle[], price: number, sector?:
     signals,
   };
 }
+
+export function recommendationLabel(mean: number | undefined): string | undefined {
+  if (mean == null) return undefined;
+  if (mean <= 1.5) return "Stark kaufen";
+  if (mean <= 2.5) return "Kaufen";
+  if (mean <= 3.5) return "Halten";
+  if (mean <= 4.5) return "Verkaufen";
+  return "Stark verkaufen";
+}
+
+// Same thresholds as the "Konsens" criterion of the fundamental rating.
+export const analystScore = (mean: number | undefined) => scale(mean, 4, 1.5);
