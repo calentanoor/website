@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { runPortfolio, setupStats, RULES, STRATEGIES, type ExitReason, type PortfolioSettings, type StrategyId, type Trade } from "@/lib/strategy";
+import { runPortfolio, setupStats, DEFAULT_PARAMS, RULES, STRATEGIES, type ExitReason, type PortfolioSettings, type StrategyId, type Trade } from "@/lib/strategy";
 import { useStored } from "@/lib/storage";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { EquityChart } from "@/components/EquityChart";
@@ -19,14 +19,15 @@ const pctClass = (v?: number) => (v == null ? "" : v > 0 ? "text-up" : v < 0 ? "
 const todayStart = () => Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
 
 type Settings = Omit<PortfolioSettings, "from">;
-const DEFAULT_SETTINGS: Settings = { startCapital: 10000, positionPct: 10, costPct: 1, instrument: "warrant" };
+// Backtest result: ~5 % per warrant position balances return and drawdown
+const DEFAULT_SETTINGS: Settings = { startCapital: 10000, positionPct: 5, costPct: 1, instrument: "warrant" };
 
 export function StrategyLab({ indices }: { indices: { id: string; name: string }[] }) {
   const [results, setResults] = useState<Record<string, IndexResult>>({});
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
   const [strategy, setStrategy] = useStored<StrategyId>("strategyId", "momentum");
   const [tab, setTab] = useState<"backtest" | "portfolio">("backtest");
-  const [stored, setSettings] = useStored<Settings>("strategySettings.v2", DEFAULT_SETTINGS);
+  const [stored, setSettings] = useStored<Settings>("strategySettings.v3", DEFAULT_SETTINGS);
   const settings = useMemo(() => ({ ...DEFAULT_SETTINGS, ...stored }), [stored]);
   const [portfolioStart, setPortfolioStart] = useStored<number | null>("portfolioStart", null);
   const [shown, setShown] = useState(30);
@@ -183,8 +184,8 @@ export function StrategyLab({ indices }: { indices: { id: string; name: string }
         <p className="mt-1 text-muted">{STRATEGIES[strategy].description}</p>
         <p className="mt-2 text-xs text-muted">
           Für alle Strategien: höchstens {RULES.maxPositions} Positionen gleichzeitig und {RULES.picksPerDay} neue pro Tag (die stärksten Signale zuerst), Einstieg
-          zur nächsten Eröffnung, Trailing-Stop {RULES.trailAtr} ATR, Haltedauer höchstens {RULES.maxHoldDays} Handelstage. Optionsscheine am Geld mit 6 Monaten
-          Laufzeit, gerollt sobald weniger als 3 Monate Restlaufzeit bleiben.
+          zur nächsten Eröffnung, Trailing-Stop {DEFAULT_PARAMS.trailAtr} ATR, Haltedauer höchstens {DEFAULT_PARAMS.maxHoldDays} Handelstage. Optionsscheine 10 % im Geld mit
+          12 Monaten Laufzeit, gerollt sobald weniger als 3 Monate Restlaufzeit bleiben. Puts werden nicht gehandelt.
         </p>
       </section>
 

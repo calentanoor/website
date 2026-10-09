@@ -1,5 +1,5 @@
 import { INDICES } from "@/lib/indices";
-import { RULES } from "@/lib/strategy";
+import { DEFAULT_PARAMS, RULES } from "@/lib/strategy";
 import { StrategyLab } from "./StrategyLab";
 
 export default function StrategyPage() {
@@ -10,7 +10,7 @@ export default function StrategyPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Backtest &amp; Testportfolio</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted">
           Drei regelbasierte Strategien im Vergleich über {RULES.testYears} Jahre auf allen Indexwerten: höchstens {RULES.maxPositions} Positionen gleichzeitig,
-          Haltedauer bis {RULES.maxHoldDays} Handelstage, Optionsscheine mit mindestens 3 Monaten Restlaufzeit. Das Testportfolio wendet die gewählte
+          Haltedauer bis {DEFAULT_PARAMS.maxHoldDays} Handelstage, Optionsscheine mit mindestens 3 Monaten Restlaufzeit. Das Testportfolio wendet die gewählte
           Strategie ab deinem Startdatum an.
         </p>
       </div>

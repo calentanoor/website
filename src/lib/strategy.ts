@@ -8,8 +8,11 @@
 // - Entry at the next day's open, initial stop from ATR or the pattern.
 // - Trailing stop (3 ATR from the best close since entry) lets winners run;
 //   exit at the latest after `maxHoldDays` trading days.
-// - Warrants: at-the-money, 6 months; rolled into a new 6-month warrant when
-//   less than 3 months remain, so the remaining time never drops below that.
+// - Warrants: 10 % in the money, 12 months; rolled into a new one when less
+//   than 3 months remain, so the remaining time never drops below that.
+//
+// Defaults were chosen with scripts/backtest.ts on 5 years of real data
+// (in-sample 3 years, checked out-of-sample on 2 years) – see research/README.md.
 import { detectPatterns, type Direction } from "./patterns";
 import { atr, rsi, sma } from "./indicators";
 import { realizedVol } from "./options-math";
@@ -19,17 +22,14 @@ import type { Candle } from "./types";
 export const RULES = {
   lookback: 260, // bars of history needed before the first signal
   testYears: 5,
-  maxHoldDays: 90, // trading days
   maxPositions: 10,
   picksPerDay: 5,
-  trailAtr: 3,
-  warrantDays: 182, // new warrants: ~6 months
   minRemainingDays: 91, // roll when fewer calendar days remain
 };
 
 export type StrategyId = "momentum" | "breakout" | "pullback";
 
-// Tunable parameters (defaults = the rules shown in the app). The research
+// Tunable parameters (defaults = the rules used in the app). The research
 // script in scripts/backtest.ts varies these on real data.
 export type Params = {
   regime: boolean; // market filter via the home index' SMA 200
@@ -58,23 +58,23 @@ export type Params = {
 
 export const DEFAULT_PARAMS: Params = {
   regime: true,
-  allowShorts: true,
+  allowShorts: false, // puts lost money in every variant tested
   trailAtr: 3,
   maxHoldDays: 90,
   nearHigh: 0.95,
   minStrength: 0,
   momentumStopAtr: 2.5,
-  momentumExitSma: 50,
+  momentumExitSma: 0,
   rsiEntry: 35,
   rsiExit: 65,
   pullbackStopAtr: 3,
   minConfidence: 50,
   minRewardRisk: 1.5,
-  breakoutLen: 20,
-  relStrength: false,
+  breakoutLen: 55,
+  relStrength: true,
   rankBy: "strength",
-  warrantDays: 182,
-  warrantMoneyness: 1,
+  warrantDays: 365,
+  warrantMoneyness: 0.9,
 };
 
 export const STRATEGIES: Record<StrategyId, { name: string; short: string; description: string }> = {
@@ -82,13 +82,13 @@ export const STRATEGIES: Record<StrategyId, { name: string; short: string; descr
     name: "Momentum-Trendfolge",
     short: "Momentum",
     description:
-      "Kauft Aktien im intakten Aufwärtstrend (Kurs > SMA 50 > SMA 200, SMA 200 steigend) nahe dem 52-Wochen-Hoch, sobald sie ein neues 20-Tage-Hoch markieren. Rangfolge nach 6-Monats-Stärke. Ausstieg per Trailing-Stop oder Schluss unter der SMA 50. Puts spiegelbildlich nur im Bärenmarkt.",
+      "Kauft Calls auf Aktien im intakten Aufwärtstrend (Kurs > SMA 50 > SMA 200, SMA 200 steigend) nahe dem 52-Wochen-Hoch, die stärker laufen als ihr Heimatindex und ein neues 55-Tage-Hoch markieren. Rangfolge nach 6-Monats-Stärke. Ausstieg nur über den Trailing-Stop (3 ATR) oder nach 90 Handelstagen.",
   },
   breakout: {
     name: "Formations-Ausbruch",
     short: "Formationen",
     description:
-      "Frische Ausbrüche aus Chartformationen (≤ 3 Tage, Konfidenz ≥ 50) in Trendrichtung des Gesamtmarkts mit Chance-Risiko ≥ 1,5. Ausstieg am Kursziel der Formation, per Trailing-Stop oder Formations-Stopp.",
+      "Frische Ausbrüche aus bullischen Chartformationen (≤ 3 Tage, Konfidenz ≥ 50) bei steigendem Gesamtmarkt mit Chance-Risiko ≥ 1,5. Ausstieg am Kursziel der Formation, per Trailing-Stop oder Formations-Stopp.",
   },
   pullback: {
     name: "Rücksetzer im Aufwärtstrend",

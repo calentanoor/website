@@ -1,14 +1,5 @@
 [
-  { "name": "R3 B: 55T + RS + nur Trail 3", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0 } },
-  { "name": "R3 B ohne RS", "strategy": "momentum", "params": { "allowShorts": false, "breakoutLen": 55, "momentumExitSma": 0 } },
-  { "name": "R3 B Trail 2,5", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "trailAtr": 2.5 } },
-  { "name": "R3 B Trail 3,5", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "trailAtr": 3.5 } },
-  { "name": "R3 B mit Exit SMA 50", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55 } },
-  { "name": "R3 B ohne Marktfilter", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "regime": false } },
-  { "name": "R3 B max 5 Pos. à 20 %", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0 }, "positionPct": 20, "warrantPct": 10, "maxPositions": 5 },
-  { "name": "R3 B max 15 Pos. à 6,7 %", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0 }, "positionPct": 6.7, "warrantPct": 3.3, "maxPositions": 15 },
-  { "name": "R3 B OS 5 % ATM 6 M.", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0 }, "warrantPct": 5 },
-  { "name": "R3 B OS 5 %, 12 M., 10 % im Geld", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "warrantDays": 365, "warrantMoneyness": 0.9 }, "warrantPct": 5 },
-  { "name": "R3 B OS 7 %, 12 M., 20 % im Geld", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "warrantDays": 365, "warrantMoneyness": 0.8 }, "warrantPct": 7 },
-  { "name": "R3 B OS 10 %, 12 M., 20 % im Geld", "strategy": "momentum", "params": { "allowShorts": false, "relStrength": true, "breakoutLen": 55, "momentumExitSma": 0, "warrantDays": 365, "warrantMoneyness": 0.8 }, "warrantPct": 10 }
+  { "name": "Standard (Momentum)", "strategy": "momentum", "warrantPct": 5 },
+  { "name": "Standard (Rücksetzer)", "strategy": "pullback", "warrantPct": 5 },
+  { "name": "Standard (Formationen)", "strategy": "breakout", "warrantPct": 5 }
 ]

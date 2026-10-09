@@ -2,7 +2,7 @@ import "server-only";
 import { cacheLife } from "next/cache";
 import { getIndex, INDICES } from "./indices";
 import { getHistory, getStockSafe } from "./market-data";
-import { prepare, replay, signalOn, RULES, STRATEGIES, type Candidate, type StrategyId, type Trade } from "./strategy";
+import { prepare, replay, signalOn, DEFAULT_PARAMS, RULES, STRATEGIES, type Candidate, type StrategyId, type Trade } from "./strategy";
 import { warrantIdea, type WarrantIdea } from "./warrant";
 
 // Strategy used for the "Top 5 heute" on the home page.
@@ -101,7 +101,7 @@ export async function getTopPicks(strategy: StrategyId = ACTIVE_STRATEGY, limit 
   const top = ranked.slice(0, limit);
   const infos = await Promise.all(top.map((c) => infoFor(c.symbol)));
   return {
-    picks: top.map((c, i) => ({ ...c, ...infos[i], warrant: warrantIdea(c.direction, c.price, c.vol, RULES.warrantDays) })),
+    picks: top.map((c, i) => ({ ...c, ...infos[i], warrant: warrantIdea(c.direction, c.price, c.vol, DEFAULT_PARAMS.warrantDays, DEFAULT_PARAMS.warrantMoneyness) })),
     candidates: ranked.length,
   };
 }

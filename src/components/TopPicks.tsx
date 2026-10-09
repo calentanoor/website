@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Pick } from "@/lib/strategy-data";
-import { RULES, STRATEGIES } from "@/lib/strategy";
+import { DEFAULT_PARAMS, RULES, STRATEGIES } from "@/lib/strategy";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { ScoreBadge } from "./ScoreBadge";
 import { WatchStar } from "./WatchStar";
@@ -58,7 +58,7 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
                 <div className="mt-auto rounded-lg bg-background/70 p-2.5 text-xs">
                   <div className="font-medium">{w.type}-Optionsschein</div>
                   <div className="tabular-nums text-muted">
-                    Basis {formatNumber(w.strike)} · ca. 6 Monate · Hebel ≈ {formatNumber(w.leverage, 1)}
+                    Basis {formatNumber(w.strike)} (10 % im Geld) · ca. 12 Monate · Hebel ≈ {formatNumber(w.leverage, 1)}
                   </div>
                   <div className="tabular-nums text-muted">Break-even bei Fälligkeit {formatNumber(w.breakEven)}</div>
                 </div>
@@ -72,7 +72,7 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
         </div>
       )}
       <p className="text-xs text-muted">
-        Regeln: Einstieg zur Eröffnung des nächsten Handelstags, Stopp im Basiswert und Trailing-Stop ({RULES.trailAtr} ATR), spätestens nach {RULES.maxHoldDays}{" "}
+        Regeln: Einstieg zur Eröffnung des nächsten Handelstags, Stopp im Basiswert und Trailing-Stop ({DEFAULT_PARAMS.trailAtr} ATR), spätestens nach {DEFAULT_PARAMS.maxHoldDays}{" "}
         Handelstagen raus; Optionsschein rollen, sobald weniger als 3 Monate Restlaufzeit bleiben. Höchstens {RULES.maxPositions} Positionen gleichzeitig.
         Signale basieren auf dem aktuellen Kurs und stehen erst nach Börsenschluss endgültig fest. Keine Anlageberatung.
       </p>
