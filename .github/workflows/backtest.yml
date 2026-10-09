@@ -3,9 +3,14 @@ name: Strategie-Backtest
 on:
   workflow_dispatch:
     inputs:
+      script:
+        description: Forschungsskript (backtest = Momentum & Co., averaging = Qualität + Nachkauf)
+        type: choice
+        options: [backtest, averaging]
+        default: backtest
       experiments:
-        description: Pfad zur Experiment-Datei
-        default: scripts/experiments.json
+        description: Experiment-Datei (leer = Standard des Skripts)
+        default: ""
 
 jobs:
   backtest:
@@ -23,9 +28,10 @@ jobs:
         run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
-          path: .cache/data
-          key: prices-${{ steps.week.outputs.week }}
-      - run: npx tsx scripts/backtest.ts "${{ inputs.experiments }}"
+          path: .cache
+          key: research-data-${{ inputs.script }}-${{ steps.week.outputs.week }}
+          restore-keys: research-data-
+      - run: npx tsx "scripts/${{ inputs.script }}.ts" ${{ inputs.experiments }}
       - uses: actions/upload-artifact@v4
         with:
           name: backtest-results

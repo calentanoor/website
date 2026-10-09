@@ -1,0 +1,12 @@
+[
+  { "name": "A: 3 Käufe (1+1+2), TP 20 %, ohne Stopp" },
+  { "name": "B: 4 Käufe (1+1+2+4)", "params": { "maxBuys": 4 }, "capital": 40000 },
+  { "name": "C: 3 Käufe, Stopp −30 % nach letztem Kauf", "params": { "stopAfterLast": 0.3 } },
+  { "name": "D: nur 1 Kauf (ohne Nachkauf), Stopp −20 %", "params": { "maxBuys": 1, "stopAfterLast": 0.2 } },
+  { "name": "E: 3 Käufe, Einstieg Fund ≥ 70", "params": { "minFundamental": 70 } },
+  { "name": "F: 3 Käufe, Einstieg Technik ≥ 70", "params": { "minTechnical": 70 } },
+  { "name": "G: 3 Käufe, TP 15 %, Nachkauf −15 %", "params": { "takeProfit": 0.15, "addDrop": 0.15 } },
+  { "name": "H: 3 Käufe, TP 30 %", "params": { "takeProfit": 0.3 } },
+  { "name": "I: 3 Käufe, ohne Marktfilter", "params": { "regime": false } },
+  { "name": "J: 3 Käufe, Basis 500 €", "base": 500 }
+]

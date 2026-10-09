@@ -5,33 +5,13 @@
 // years) vs. out-of-sample (last 2 years) results, so improvements found on
 // old data can be checked on data they were not tuned on.
 import fs from "node:fs";
-import path from "node:path";
-import YahooFinance from "yahoo-finance2";
 import { INDICES } from "../src/lib/indices";
 import { DEFAULT_PARAMS, prepare, replay, runPortfolio, setupStats, RULES, type Params, type StrategyId, type Trade } from "../src/lib/strategy";
 import type { Candle } from "../src/lib/types";
+import { benchmarkOf, cagr, history, pct } from "./data";
 
 // positionPct: % of equity per stock position; warrantPct: per warrant position
 type Experiment = { name: string; strategy: StrategyId; params?: Partial<Params>; positionPct?: number; warrantPct?: number; maxPositions?: number };
-
-const CACHE = ".cache/data";
-const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"], queue: { concurrency: 4 } });
-
-async function history(symbol: string): Promise<Candle[]> {
-  const file = path.join(CACHE, `${symbol.replace(/[^A-Za-z0-9.-]/g, "_")}.json`);
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
-  const chart = await yf.chart(symbol, { period1: new Date(Date.now() - 2300 * 86400000), interval: "1d", return: "array" });
-  const candles = chart.quotes
-    .filter((q) => q.open != null && q.high != null && q.low != null && q.close != null)
-    .map((q) => ({ time: Math.floor(q.date.getTime() / 1000), open: q.open!, high: q.high!, low: q.low!, close: q.close!, volume: q.volume ?? 0 }));
-  fs.mkdirSync(CACHE, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(candles));
-  return candles;
-}
-
-const benchmarkOf = (s: string) => (s.endsWith(".DE") ? "^GDAXI" : s.includes(".") ? "^STOXX50E" : "^GSPC");
-const pct = (v?: number, d = 1) => (v == null || !Number.isFinite(v) ? "–" : `${v >= 0 ? "+" : ""}${v.toFixed(d)}%`);
-const cagr = (ret: number, years: number) => ((1 + ret / 100) ** (1 / years) - 1) * 100;
 
 async function main() {
   const experiments: Experiment[] = JSON.parse(fs.readFileSync(process.argv[2] ?? "scripts/experiments.json", "utf8"));
