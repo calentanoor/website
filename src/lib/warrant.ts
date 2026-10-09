@@ -21,10 +21,12 @@ export function strikeStep(price: number) {
 
 // At-the-money strike, ~3 months to expiry: enough time for a pattern to play
 // out (trades are held up to 20 trading days) without heavy time decay.
-export function warrantIdea(direction: "bullish" | "bearish", price: number, vol: number, days = 90): WarrantIdea {
+// moneyness < 1 = in the money (call strike below / put strike above the
+// price): lower leverage, but less time value to lose.
+export function warrantIdea(direction: "bullish" | "bearish", price: number, vol: number, days = 90, moneyness = 1): WarrantIdea {
   const type = direction === "bullish" ? "Call" : "Put";
   const step = strikeStep(price);
-  const strike = Math.round(price / step) * step;
+  const strike = Math.round((type === "Call" ? price * moneyness : price * (2 - moneyness)) / step) * step;
   const t = days / 365;
   const sigma = Math.min(1.5, Math.max(0.1, vol));
   const kind = type === "Call" ? "call" : "put";

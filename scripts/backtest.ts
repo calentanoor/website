@@ -11,7 +11,8 @@ import { INDICES } from "../src/lib/indices";
 import { DEFAULT_PARAMS, prepare, replay, runPortfolio, setupStats, RULES, type Params, type StrategyId, type Trade } from "../src/lib/strategy";
 import type { Candle } from "../src/lib/types";
 
-type Experiment = { name: string; strategy: StrategyId; params?: Partial<Params>; positionPct?: number; maxPositions?: number };
+// positionPct: % of equity per stock position; warrantPct: per warrant position
+type Experiment = { name: string; strategy: StrategyId; params?: Partial<Params>; positionPct?: number; warrantPct?: number; maxPositions?: number };
 
 const CACHE = ".cache/data";
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"], queue: { concurrency: 4 } });
@@ -83,7 +84,7 @@ async function main() {
     const trades: Trade[] = [];
     for (const [symbol, s] of series) trades.push(...replay(ex.strategy, symbol, s, s.c.findIndex((c) => c.time >= testStart), params));
     for (const instrument of ["stock", "warrant"] as const) {
-      const base = { startCapital: 10000, positionPct: ex.positionPct ?? 10, costPct: instrument === "stock" ? 0.2 : 1, instrument, maxPositions: ex.maxPositions };
+      const base = { startCapital: 10000, positionPct: instrument === "stock" ? ex.positionPct ?? 10 : ex.warrantPct ?? ex.positionPct ?? 10, costPct: instrument === "stock" ? 0.2 : 1, instrument, maxPositions: ex.maxPositions };
       const full = runPortfolio(trades, base);
       const is = runPortfolio(trades, { ...base, to: split });
       const oos = runPortfolio(trades, { ...base, from: split });

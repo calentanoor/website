@@ -48,6 +48,12 @@ export type Params = {
   // pattern breakout
   minConfidence: number;
   minRewardRisk: number;
+  // added in research round 2
+  breakoutLen: 20 | 55; // momentum: new N-day high
+  relStrength: boolean; // momentum/pullback: 6-month return above the home index
+  rankBy: "strength" | "riskAdjusted"; // momentum ranking: return or return/volatility
+  warrantDays: number; // maturity of new warrants (calendar days)
+  warrantMoneyness: number; // 1 = at the money, 0.9 = 10 % in the money
 };
 
 export const DEFAULT_PARAMS: Params = {
@@ -64,6 +70,11 @@ export const DEFAULT_PARAMS: Params = {
   pullbackStopAtr: 3,
   minConfidence: 50,
   minRewardRisk: 1.5,
+  breakoutLen: 20,
+  relStrength: false,
+  rankBy: "strength",
+  warrantDays: 182,
+  warrantMoneyness: 1,
 };
 
 export const STRATEGIES: Record<StrategyId, { name: string; short: string; description: string }> = {
@@ -126,6 +137,9 @@ export type Series = {
   atr: number[];
   rsi: number[];
   high20: number[]; // highest high of the previous 20 bars
+  high55: number[];
+  low55: number[];
+  benchStrength?: number[]; // 6-month return of the home index, aligned
   low20: number[];
   high252: number[];
   low252: number[];
@@ -149,6 +163,7 @@ export function prepare(candles: Candle[], benchmark?: Candle[]): Series {
   const high = candles.map((c) => c.high);
   const low = candles.map((c) => c.low);
   let regime: Series["regime"];
+  let benchStrength: number[] | undefined;
   if (benchmark?.length) {
     const bClose = benchmark.map((c) => c.close);
     const bSma = sma(bClose, 200);
@@ -159,6 +174,13 @@ export function prepare(candles: Candle[], benchmark?: Candle[]): Series {
       if (v !== undefined) lastKnown = v;
       return lastKnown;
     });
+    const bIndex = new Map(benchmark.map((c, i) => [dayKey(c.time), i]));
+    let lastStrength = NaN;
+    benchStrength = candles.map((c) => {
+      const i = bIndex.get(dayKey(c.time));
+      if (i != null && i >= 126) lastStrength = bClose[i] / bClose[i - 126] - 1;
+      return lastStrength;
+    });
   }
   return {
     c: candles,
@@ -168,6 +190,9 @@ export function prepare(candles: Candle[], benchmark?: Candle[]): Series {
     atr: atr(high, low, close),
     rsi: rsi(close),
     high20: rolling(high, 20, Math.max, 1),
+    high55: rolling(high, 55, Math.max, 1),
+    low55: rolling(low, 55, Math.min, 1),
+    benchStrength,
     low20: rolling(low, 20, Math.min, 1),
     high252: rolling(high, 252, Math.max),
     low252: rolling(low, 252, Math.min),
@@ -193,13 +218,19 @@ function momentumSignal(symbol: string, s: Series, d: number, p: Params): Candid
   const strength = s.close[d] / s.close[d - 126] - 1;
   const base = { symbol, strategy: "momentum" as const, time: s.c[d].time, price, vol: vol60(s, d) };
 
-  const up = price > s.sma50[d] && s.sma50[d] > s.sma200[d] && s.sma200[d] > s.sma200[d - 20] && price >= p.nearHigh * s.high252[d] && price > s.high20[d];
-  if (up && bull(s, d, p) && strength > p.minStrength) {
-    return { ...base, direction: "bullish", pattern: "Momentum-Ausbruch", score: Math.round(Math.min(100, 50 + strength * 100)), stop: price - p.momentumStopAtr * a };
+  const highN = p.breakoutLen === 55 ? s.high55[d] : s.high20[d];
+  const lowN = p.breakoutLen === 55 ? s.low55[d] : s.low20[d];
+  const bench = s.benchStrength?.[d];
+  const rsOk = (long: boolean) => !p.relStrength || bench == null || !Number.isFinite(bench) || (long ? strength > bench : strength < bench);
+  // risk-adjusted momentum: 6-month return per unit of volatility
+  const rank = (v: number) => (p.rankBy === "riskAdjusted" ? (v / Math.max(0.1, base.vol)) * 0.5 : v);
+  const up = price > s.sma50[d] && s.sma50[d] > s.sma200[d] && s.sma200[d] > s.sma200[d - 20] && price >= p.nearHigh * s.high252[d] && price > highN;
+  if (up && bull(s, d, p) && strength > p.minStrength && rsOk(true)) {
+    return { ...base, direction: "bullish", pattern: "Momentum-Ausbruch", score: Math.round(Math.min(100, 50 + rank(strength) * 100)), stop: price - p.momentumStopAtr * a };
   }
-  const down = price < s.sma50[d] && s.sma50[d] < s.sma200[d] && s.sma200[d] < s.sma200[d - 20] && price <= (2 - p.nearHigh) * s.low252[d] && price < s.low20[d];
-  if (down && bear(s, d, p) && strength < -p.minStrength) {
-    return { ...base, direction: "bearish", pattern: "Momentum-Bruch", score: Math.round(Math.min(100, 50 - strength * 100)), stop: price + p.momentumStopAtr * a };
+  const down = price < s.sma50[d] && s.sma50[d] < s.sma200[d] && s.sma200[d] < s.sma200[d - 20] && price <= (2 - p.nearHigh) * s.low252[d] && price < lowN;
+  if (down && bear(s, d, p) && strength < -p.minStrength && rsOk(false)) {
+    return { ...base, direction: "bearish", pattern: "Momentum-Bruch", score: Math.round(Math.min(100, 50 - rank(strength) * 100)), stop: price + p.momentumStopAtr * a };
   }
   return undefined;
 }
@@ -210,6 +241,8 @@ function pullbackSignal(symbol: string, s: Series, d: number, p: Params): Candid
   if (!Number.isFinite(s.sma200[d]) || !Number.isFinite(a) || !bull(s, d, p)) return undefined;
   if (!(price > s.sma200[d] && s.sma50[d] > s.sma200[d] && s.rsi[d] < p.rsiEntry)) return undefined;
   const strength = s.close[d] / s.close[d - 126] - 1;
+  const bench = s.benchStrength?.[d];
+  if (p.relStrength && bench != null && Number.isFinite(bench) && strength <= bench) return undefined;
   return {
     symbol,
     strategy: "pullback",
@@ -270,11 +303,11 @@ export function simulate(c: Candidate, s: Series, d: number, p: Params = DEFAULT
   const entryPrice = entryBar.open;
 
   // Warrant chain: value multiplier across rolls
-  let w = warrantIdea(c.direction, entryPrice, c.vol, RULES.warrantDays);
+  let w = warrantIdea(c.direction, entryPrice, c.vol, p.warrantDays, p.warrantMoneyness);
   let wStart = entryBar.time;
   let wMultiplier = 1;
   let rolls = 0;
-  const warrantNow = (spot: number, time: number) => warrantValue(w.type, spot, w.strike, RULES.warrantDays - (time - wStart) / 86400, w.vol) / w.fairPrice;
+  const warrantNow = (spot: number, time: number) => warrantValue(w.type, spot, w.strike, p.warrantDays - (time - wStart) / 86400, w.vol) / w.fairPrice;
 
   let stop = c.stop;
   let best = entryPrice;
@@ -313,9 +346,9 @@ export function simulate(c: Candidate, s: Series, d: number, p: Params = DEFAULT
     }
 
     // roll the warrant before its remaining time drops below 3 months
-    if (RULES.warrantDays - (bar.time - wStart) / 86400 < RULES.minRemainingDays) {
+    if (p.warrantDays - (bar.time - wStart) / 86400 < RULES.minRemainingDays) {
       wMultiplier *= warrantNow(bar.close, bar.time);
-      w = warrantIdea(c.direction, bar.close, c.vol, RULES.warrantDays);
+      w = warrantIdea(c.direction, bar.close, c.vol, p.warrantDays, p.warrantMoneyness);
       wStart = bar.time;
       rolls++;
     }
