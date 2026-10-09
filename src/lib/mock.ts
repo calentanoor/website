@@ -93,10 +93,10 @@ export function mockChart(symbol: string, range: keyof typeof mockRange): Candle
   return candles.map((c) => ({ ...c, open: c.open * k, high: c.high * k, low: c.low * k, close: c.close * k }));
 }
 
-// ~3 years of daily candles ending at the mock price (backtest)
+// ~6 years of daily candles ending at the mock price (backtest)
 export function mockHistory(symbol: string): Candle[] {
   const end = mockStock(symbol).price;
-  const candles = mockCandles(symbol + "hist", 100, 760);
+  const candles = mockCandles(symbol + "hist", 100, 1560);
   const k = end / candles[candles.length - 1].close;
   return candles.map((c) => ({ ...c, open: c.open * k, high: c.high * k, low: c.low * k, close: c.close * k }));
 }

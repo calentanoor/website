@@ -403,11 +403,11 @@ function ideaFor(p: Pattern, price: number, vol: number): OptionsIdea {
       rationale: "Richtung noch offen – erst den Ausbruch abwarten, dann Optionsschein in Ausbruchsrichtung.",
     };
   }
-  const w = warrantIdea(p.direction, price, vol);
+  const w = warrantIdea(p.direction, price, vol, 182);
   const confirmed = p.status !== "forming";
   return {
     strategy: `${w.type}-Optionsschein`,
-    legs: `Basis ${fmt(w.strike)}, Laufzeit ≥ 3 Monate, Hebel ca. ${fmt(Math.round(w.leverage * 10) / 10)}`,
+    legs: `Basis ${fmt(w.strike)}, Laufzeit ca. 6 Monate (rollen bei < 3 Monaten), Hebel ca. ${fmt(Math.round(w.leverage * 10) / 10)}`,
     rationale: confirmed
       ? `Ausbruch bestätigt. Kursziel ${p.target ? fmt(p.target) : "–"}, Stopp im Basiswert ${p.stop ? fmt(p.stop) : "–"}.`
       : `Noch in Bildung – Einstieg erst bei Schlusskurs ${p.direction === "bullish" ? "über" : "unter"} ${fmt(p.trigger ?? price)}.`,

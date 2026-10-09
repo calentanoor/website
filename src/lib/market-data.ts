@@ -85,12 +85,13 @@ export async function getChart(symbol: string, range: ChartRange): Promise<Candl
   }
 }
 
-// Long daily history for the strategy backtest (≈ 3 years)
+// Long daily history for the strategy backtest: 5 test years plus one year
+// of indicator warm-up. Kept in the shared remote cache (large and slow to load).
 export async function getHistory(symbol: string): Promise<Candle[]> {
-  "use cache";
-  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 3 * 86400 });
+  "use cache: remote";
+  cacheLife({ stale: 3600, revalidate: 12 * 3600, expire: 3 * 86400 });
   if (mockEnabled()) return mockHistory(symbol);
-  return getCandles(symbol, 1100, "1d");
+  return getCandles(symbol, 2300, "1d");
 }
 
 const toMs = (d?: Date) => (d ? d.getTime() : undefined);

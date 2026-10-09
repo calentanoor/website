@@ -1,13 +1,17 @@
 import type { NextRequest } from "next/server";
 import { getIndex } from "@/lib/indices";
-import { getIndexTrades } from "@/lib/strategy-data";
+import { getBenchmarks, getIndexTrades, isStrategy } from "@/lib/strategy-data";
 
-// Replaying a whole index can take a while on the first (uncached) call.
+// Replaying five years of an index can take a while on the first call.
 export const maxDuration = 300;
 
-// GET /api/strategy?index=dax → { trades, info, errors }
+// GET /api/strategy?index=dax&strategy=momentum → { trades, info, errors }
+// GET /api/strategy?benchmarks=1 → { benchmarks }
 export async function GET(request: NextRequest) {
-  const id = request.nextUrl.searchParams.get("index") ?? "";
-  if (!getIndex(id)?.constituents) return Response.json({ error: "Unbekannter Index" }, { status: 400 });
-  return Response.json(await getIndexTrades(id));
+  const params = request.nextUrl.searchParams;
+  if (params.get("benchmarks")) return Response.json({ benchmarks: await getBenchmarks() });
+  const id = params.get("index") ?? "";
+  const strategy = params.get("strategy");
+  if (!getIndex(id)?.constituents || !isStrategy(strategy)) return Response.json({ error: "index und strategy erforderlich" }, { status: 400 });
+  return Response.json(await getIndexTrades(id, strategy));
 }

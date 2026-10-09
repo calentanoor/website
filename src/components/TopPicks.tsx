@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Pick } from "@/lib/strategy-data";
-import { RULES } from "@/lib/strategy";
+import { RULES, STRATEGIES } from "@/lib/strategy";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { ScoreBadge } from "./ScoreBadge";
 import { WatchStar } from "./WatchStar";
@@ -12,7 +12,7 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Top {RULES.picksPerDay} heute</h2>
           <p className="text-sm text-muted">
-            Frische Ausbrüche aus Chartformationen, bestätigt durch das Technik-Rating – {candidates} Signal{candidates === 1 ? "" : "e"} im gesamten Universum.
+            Strategie „{picks[0] ? STRATEGIES[picks[0].strategy].name : STRATEGIES.momentum.name}“ – {candidates} Signal{candidates === 1 ? "" : "e"} im gesamten Universum.
           </p>
         </div>
         <Link href="/strategie" className="text-sm text-accent hover:underline">Backtest &amp; Testportfolio →</Link>
@@ -48,7 +48,7 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
                   </div>
                   <div>
                     <dt className="text-muted">Ziel</dt>
-                    <dd className="tabular-nums text-up">{formatPercent(Math.abs(p.target / p.price - 1) * 100, 1)}</dd>
+                    <dd className="tabular-nums text-up">{p.target ? formatPercent(Math.abs(p.target / p.price - 1) * 100, 1) : "Trailing"}</dd>
                   </div>
                   <div>
                     <dt className="text-muted">Stopp</dt>
@@ -58,12 +58,13 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
                 <div className="mt-auto rounded-lg bg-background/70 p-2.5 text-xs">
                   <div className="font-medium">{w.type}-Optionsschein</div>
                   <div className="tabular-nums text-muted">
-                    Basis {formatNumber(w.strike)} · ≥ 3 Monate · Hebel ≈ {formatNumber(w.leverage, 1)}
+                    Basis {formatNumber(w.strike)} · ca. 6 Monate · Hebel ≈ {formatNumber(w.leverage, 1)}
                   </div>
                   <div className="tabular-nums text-muted">Break-even bei Fälligkeit {formatNumber(w.breakEven)}</div>
                 </div>
                 <div className="text-[11px] text-muted">
-                  Stopp {formatNumber(p.stop)} · Ziel {formatNumber(p.target)} · CRV {formatNumber(p.rewardRisk, 1)}
+                  Stopp {formatNumber(p.stop)}
+                  {p.target ? ` · Ziel ${formatNumber(p.target)} · CRV ${formatNumber(p.rewardRisk, 1)}` : " · danach Trailing-Stop"}
                 </div>
               </article>
             );
@@ -71,7 +72,8 @@ export function TopPicks({ picks, candidates }: { picks: Pick[]; candidates: num
         </div>
       )}
       <p className="text-xs text-muted">
-        Regeln: Einstieg zur Eröffnung des nächsten Handelstags, Ausstieg bei Kursziel oder Stopp im Basiswert, spätestens nach {RULES.maxHoldDays} Handelstagen.
+        Regeln: Einstieg zur Eröffnung des nächsten Handelstags, Stopp im Basiswert und Trailing-Stop ({RULES.trailAtr} ATR), spätestens nach {RULES.maxHoldDays}{" "}
+        Handelstagen raus; Optionsschein rollen, sobald weniger als 3 Monate Restlaufzeit bleiben. Höchstens {RULES.maxPositions} Positionen gleichzeitig.
         Signale basieren auf dem aktuellen Kurs und stehen erst nach Börsenschluss endgültig fest. Keine Anlageberatung.
       </p>
     </section>

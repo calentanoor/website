@@ -26,10 +26,13 @@ Produktiv: `npm run build && npm start`.
   Doppelboden/-top, (inverse) SKS, Dreiecke, Keile, Trendkanäle, Range, Flaggen,
   Ausbrüche aus Unterstützung/Widerstand; mit Auslöser, Kursziel, Stopp, Konfidenz und
   Optionsidee. Formationen werden auch im Chart der Detailseite eingezeichnet.
-- **Top 5 heute** (Startseite) und **Strategie** (`/strategie`): tägliche Signale aus frischen
-  Formations-Ausbrüchen + Technik-Rating (`src/lib/strategy.ts`), Backtest über 12 Monate
-  (Depotkurve, Trefferquote je Formation, Trade-Liste) und Testportfolio ab Startdatum.
-  Optionsschein-Renditen per Black-Scholes modelliert (`src/lib/warrant.ts`).
+- **Top 5 heute** (Startseite) und **Strategie** (`/strategie`): drei regelbasierte Strategien
+  (`src/lib/strategy.ts`) – Momentum-Trendfolge, Formations-Ausbruch, Rücksetzer im
+  Aufwärtstrend – mit Marktfilter (Index über/unter SMA 200), Trailing-Stop, max. 90 Handelstagen
+  Haltedauer und max. 10 Positionen. Backtest über 5 Jahre im Vergleich zu S&P 500, DAX und
+  Euro Stoxx 50 (Jahresrenditen, Auswertung je Setup, Trade-Liste) und Testportfolio ab Startdatum.
+  Optionsscheine am Geld mit 6 Monaten Laufzeit, gerollt bei < 3 Monaten Restlaufzeit
+  (`src/lib/warrant.ts`). Die Top 5 nutzen `ACTIVE_STRATEGY` in `src/lib/strategy-data.ts`.
 - **Optionen** (`/optionen/[symbol]`, nur US-Werte): erwarteter Kursverlauf (IV-Kegel 1σ/2σ),
   Expected Move je Verfall, Max Pain, Call-/Put-Walls, Gamma-Exposure (GEX) mit Gamma-Flip,
   Volatilitäts-Smile, Laufzeitstruktur, IV vs. realisierte Vola, Skew und automatische Einordnung.
