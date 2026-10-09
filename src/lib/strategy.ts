@@ -29,6 +29,43 @@ export const RULES = {
 
 export type StrategyId = "momentum" | "breakout" | "pullback";
 
+// Tunable parameters (defaults = the rules shown in the app). The research
+// script in scripts/backtest.ts varies these on real data.
+export type Params = {
+  regime: boolean; // market filter via the home index' SMA 200
+  allowShorts: boolean; // puts at all
+  trailAtr: number; // 0 = no trailing stop
+  maxHoldDays: number;
+  // momentum
+  nearHigh: number; // close within this fraction of the 52-week high
+  minStrength: number; // minimum 6-month return
+  momentumStopAtr: number;
+  momentumExitSma: 0 | 50 | 200; // exit on a close below this SMA (0 = off)
+  // pullback
+  rsiEntry: number;
+  rsiExit: number;
+  pullbackStopAtr: number;
+  // pattern breakout
+  minConfidence: number;
+  minRewardRisk: number;
+};
+
+export const DEFAULT_PARAMS: Params = {
+  regime: true,
+  allowShorts: true,
+  trailAtr: 3,
+  maxHoldDays: 90,
+  nearHigh: 0.95,
+  minStrength: 0,
+  momentumStopAtr: 2.5,
+  momentumExitSma: 50,
+  rsiEntry: 35,
+  rsiExit: 65,
+  pullbackStopAtr: 3,
+  minConfidence: 50,
+  minRewardRisk: 1.5,
+};
+
 export const STRATEGIES: Record<StrategyId, { name: string; short: string; description: string }> = {
   momentum: {
     name: "Momentum-Trendfolge",
@@ -138,8 +175,9 @@ export function prepare(candles: Candle[], benchmark?: Candle[]): Series {
   };
 }
 
-const bull = (s: Series, d: number) => s.regime?.[d] !== false; // unknown → allowed
-const bear = (s: Series, d: number) => s.regime?.[d] === false;
+// Market filter (unknown regime counts as bullish)
+const bull = (s: Series, d: number, p: Params) => !p.regime || s.regime?.[d] !== false;
+const bear = (s: Series, d: number, p: Params) => p.allowShorts && (!p.regime || s.regime?.[d] === false);
 
 function vol60(s: Series, d: number) {
   return realizedVol(s.close.slice(Math.max(0, d - 60), d + 1), 60) ?? 0.3;
@@ -148,29 +186,29 @@ function vol60(s: Series, d: number) {
 // ---------------------------------------------------------------------------
 // Entry signals on bar d
 
-function momentumSignal(symbol: string, s: Series, d: number): Candidate | undefined {
+function momentumSignal(symbol: string, s: Series, d: number, p: Params): Candidate | undefined {
   const price = s.close[d];
   const a = s.atr[d];
   if (!Number.isFinite(s.sma200[d - 20]) || !Number.isFinite(a)) return undefined;
   const strength = s.close[d] / s.close[d - 126] - 1;
   const base = { symbol, strategy: "momentum" as const, time: s.c[d].time, price, vol: vol60(s, d) };
 
-  const up = price > s.sma50[d] && s.sma50[d] > s.sma200[d] && s.sma200[d] > s.sma200[d - 20] && price >= 0.95 * s.high252[d] && price > s.high20[d];
-  if (up && bull(s, d) && strength > 0) {
-    return { ...base, direction: "bullish", pattern: "Momentum-Ausbruch", score: Math.round(Math.min(100, 50 + strength * 100)), stop: price - 2.5 * a };
+  const up = price > s.sma50[d] && s.sma50[d] > s.sma200[d] && s.sma200[d] > s.sma200[d - 20] && price >= p.nearHigh * s.high252[d] && price > s.high20[d];
+  if (up && bull(s, d, p) && strength > p.minStrength) {
+    return { ...base, direction: "bullish", pattern: "Momentum-Ausbruch", score: Math.round(Math.min(100, 50 + strength * 100)), stop: price - p.momentumStopAtr * a };
   }
-  const down = price < s.sma50[d] && s.sma50[d] < s.sma200[d] && s.sma200[d] < s.sma200[d - 20] && price <= 1.05 * s.low252[d] && price < s.low20[d];
-  if (down && bear(s, d) && strength < 0) {
-    return { ...base, direction: "bearish", pattern: "Momentum-Bruch", score: Math.round(Math.min(100, 50 - strength * 100)), stop: price + 2.5 * a };
+  const down = price < s.sma50[d] && s.sma50[d] < s.sma200[d] && s.sma200[d] < s.sma200[d - 20] && price <= (2 - p.nearHigh) * s.low252[d] && price < s.low20[d];
+  if (down && bear(s, d, p) && strength < -p.minStrength) {
+    return { ...base, direction: "bearish", pattern: "Momentum-Bruch", score: Math.round(Math.min(100, 50 - strength * 100)), stop: price + p.momentumStopAtr * a };
   }
   return undefined;
 }
 
-function pullbackSignal(symbol: string, s: Series, d: number): Candidate | undefined {
+function pullbackSignal(symbol: string, s: Series, d: number, p: Params): Candidate | undefined {
   const price = s.close[d];
   const a = s.atr[d];
-  if (!Number.isFinite(s.sma200[d]) || !Number.isFinite(a) || !bull(s, d)) return undefined;
-  if (!(price > s.sma200[d] && s.sma50[d] > s.sma200[d] && s.rsi[d] < 35)) return undefined;
+  if (!Number.isFinite(s.sma200[d]) || !Number.isFinite(a) || !bull(s, d, p)) return undefined;
+  if (!(price > s.sma200[d] && s.sma50[d] > s.sma200[d] && s.rsi[d] < p.rsiEntry)) return undefined;
   const strength = s.close[d] / s.close[d - 126] - 1;
   return {
     symbol,
@@ -178,14 +216,14 @@ function pullbackSignal(symbol: string, s: Series, d: number): Candidate | undef
     time: s.c[d].time,
     direction: "bullish",
     pattern: "Rücksetzer im Aufwärtstrend",
-    score: Math.round(Math.max(0, Math.min(100, 40 + strength * 60 + (35 - s.rsi[d])))),
+    score: Math.round(Math.max(0, Math.min(100, 40 + strength * 60 + (p.rsiEntry - s.rsi[d])))),
     price,
-    stop: price - 3 * a,
+    stop: price - p.pullbackStopAtr * a,
     vol: vol60(s, d),
   };
 }
 
-function breakoutSignal(symbol: string, s: Series, d: number): Candidate | undefined {
+function breakoutSignal(symbol: string, s: Series, d: number, prm: Params): Candidate | undefined {
   // Cheap pre-filter: a pattern breakout coincides with a 10-day extreme close
   // within the last 3 bars; only then run the (expensive) pattern detection.
   let extreme = false;
@@ -200,14 +238,14 @@ function breakoutSignal(symbol: string, s: Series, d: number): Candidate | undef
   const price = s.close[d];
   let best: Candidate | undefined;
   for (const p of detectPatterns(window).patterns) {
-    if (p.direction === "neutral" || p.status === "forming" || (p.breakoutTime ?? 0) < freshFrom || p.confidence < 50 || p.stop == null) continue;
+    if (p.direction === "neutral" || p.status === "forming" || (p.breakoutTime ?? 0) < freshFrom || p.confidence < prm.minConfidence || p.stop == null) continue;
     const long = p.direction === "bullish";
-    if (long ? !bull(s, d) : !bear(s, d)) continue;
+    if (long ? !bull(s, d, prm) : !bear(s, d, prm)) continue;
     const risk = long ? price - p.stop : p.stop - price;
     if (risk <= 0) continue;
     const target = p.target ?? (long ? price + 2 * risk : price - 2 * risk);
     const rewardRisk = (long ? target - price : price - target) / risk;
-    if (rewardRisk < 1.5) continue;
+    if (rewardRisk < prm.minRewardRisk) continue;
     const score = Math.round(0.6 * p.confidence + 40 * Math.min(1, rewardRisk / 4));
     if (!best || score > best.score) {
       best = { symbol, strategy: "breakout", time: s.c[d].time, direction: p.direction, pattern: p.label, score, price, stop: p.stop, target, rewardRisk, vol: vol60(s, d) };
@@ -216,15 +254,15 @@ function breakoutSignal(symbol: string, s: Series, d: number): Candidate | undef
   return best;
 }
 
-export function signalOn(id: StrategyId, symbol: string, s: Series, d: number): Candidate | undefined {
+export function signalOn(id: StrategyId, symbol: string, s: Series, d: number, p: Params = DEFAULT_PARAMS): Candidate | undefined {
   if (d < RULES.lookback) return undefined;
-  return id === "momentum" ? momentumSignal(symbol, s, d) : id === "pullback" ? pullbackSignal(symbol, s, d) : breakoutSignal(symbol, s, d);
+  return id === "momentum" ? momentumSignal(symbol, s, d, p) : id === "pullback" ? pullbackSignal(symbol, s, d, p) : breakoutSignal(symbol, s, d, p);
 }
 
 // ---------------------------------------------------------------------------
 // Trade simulation
 
-export function simulate(c: Candidate, s: Series, d: number): Trade | undefined {
+export function simulate(c: Candidate, s: Series, d: number, p: Params = DEFAULT_PARAMS): Trade | undefined {
   const entryBar = s.c[d + 1];
   if (!entryBar) return undefined;
   const long = c.direction === "bullish";
@@ -254,22 +292,25 @@ export function simulate(c: Candidate, s: Series, d: number): Trade | undefined 
       exit = { i, price: long ? Math.max(bar.open, c.target) : Math.min(bar.open, c.target), reason: "target" };
       break;
     }
-    if (c.strategy === "momentum" && (long ? bar.close < s.sma50[i] : bar.close > s.sma50[i])) {
+    const exitSma = p.momentumExitSma === 50 ? s.sma50[i] : p.momentumExitSma === 200 ? s.sma200[i] : NaN;
+    if (c.strategy === "momentum" && Number.isFinite(exitSma) && (long ? bar.close < exitSma : bar.close > exitSma)) {
       exit = { i, price: bar.close, reason: "signal" };
       break;
     }
-    if (c.strategy === "pullback" && s.rsi[i] > 65) {
+    if (c.strategy === "pullback" && s.rsi[i] > p.rsiExit) {
       exit = { i, price: bar.close, reason: "signal" };
       break;
     }
-    if (held >= RULES.maxHoldDays) {
+    if (held >= p.maxHoldDays) {
       exit = { i, price: bar.close, reason: "time" };
       break;
     }
     // trail the stop on closes, never loosen it
     best = long ? Math.max(best, bar.close) : Math.min(best, bar.close);
-    const trail = best - dir * RULES.trailAtr * s.atr[i];
-    stop = long ? Math.max(stop, trail) : Math.min(stop, trail);
+    if (p.trailAtr > 0) {
+      const trail = best - dir * p.trailAtr * s.atr[i];
+      stop = long ? Math.max(stop, trail) : Math.min(stop, trail);
+    }
 
     // roll the warrant before its remaining time drops below 3 months
     if (RULES.warrantDays - (bar.time - wStart) / 86400 < RULES.minRemainingDays) {
@@ -299,12 +340,12 @@ export function simulate(c: Candidate, s: Series, d: number): Trade | undefined 
 
 // All trades of one symbol from bar `from` on. While a trade is running the
 // symbol produces no new signal (one position per symbol).
-export function replay(id: StrategyId, symbol: string, s: Series, from: number): Trade[] {
+export function replay(id: StrategyId, symbol: string, s: Series, from: number, p: Params = DEFAULT_PARAMS): Trade[] {
   const trades: Trade[] = [];
   for (let d = Math.max(from, RULES.lookback); d < s.c.length; d++) {
-    const c = signalOn(id, symbol, s, d);
+    const c = signalOn(id, symbol, s, d, p);
     if (!c) continue;
-    const trade = simulate(c, s, d);
+    const trade = simulate(c, s, d, p);
     if (!trade) continue;
     trades.push(trade);
     if (trade.exitReason === "open") break;
@@ -321,7 +362,9 @@ export type PortfolioSettings = {
   positionPct: number; // % of current equity per new position
   costPct: number; // per transaction (buy, sell, each roll counts twice)
   instrument: "stock" | "warrant";
-  from?: number;
+  from?: number; // only signals from this time (unix seconds)
+  to?: number; // … and before this time
+  maxPositions?: number;
 };
 
 export type PortfolioTrade = Trade & { invested: number; pnl: number };
@@ -346,7 +389,7 @@ export type PortfolioResult = {
 export function runPortfolio(all: Trade[], s: PortfolioSettings): PortfolioResult {
   const byDay = new Map<number, Trade[]>();
   for (const t of all) {
-    if (s.from != null && t.time < s.from) continue;
+    if ((s.from != null && t.time < s.from) || (s.to != null && t.time >= s.to)) continue;
     byDay.set(t.entryTime, [...(byDay.get(t.entryTime) ?? []), t]);
   }
   const days = [...byDay.keys()].sort((a, b) => a - b);
@@ -382,7 +425,7 @@ export function runPortfolio(all: Trade[], s: PortfolioSettings): PortfolioResul
     let taken = 0;
     for (const t of picks) {
       const size = (equityBook * s.positionPct) / 100;
-      if (held.length >= RULES.maxPositions || taken >= RULES.picksPerDay || cash < size || size <= 0) {
+      if (held.length >= (s.maxPositions ?? RULES.maxPositions) || taken >= RULES.picksPerDay || cash < size || size <= 0) {
         skipped++;
         continue;
       }

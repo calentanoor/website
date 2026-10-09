@@ -1,0 +1,16 @@
+[
+  { "name": "Momentum Standard", "strategy": "momentum" },
+  { "name": "Momentum ohne Puts", "strategy": "momentum", "params": { "allowShorts": false } },
+  { "name": "Momentum ohne Marktfilter", "strategy": "momentum", "params": { "regime": false } },
+  { "name": "Momentum Trail 4 ATR", "strategy": "momentum", "params": { "trailAtr": 4 } },
+  { "name": "Momentum Trail 2 ATR", "strategy": "momentum", "params": { "trailAtr": 2 } },
+  { "name": "Momentum Exit SMA 200", "strategy": "momentum", "params": { "momentumExitSma": 200 } },
+  { "name": "Momentum nur Trail", "strategy": "momentum", "params": { "momentumExitSma": 0 } },
+  { "name": "Momentum Stärke > 20 %", "strategy": "momentum", "params": { "minStrength": 0.2 } },
+  { "name": "Rücksetzer Standard", "strategy": "pullback" },
+  { "name": "Rücksetzer RSI 30/55", "strategy": "pullback", "params": { "rsiEntry": 30, "rsiExit": 55 } },
+  { "name": "Rücksetzer ohne Trail", "strategy": "pullback", "params": { "trailAtr": 0 } },
+  { "name": "Formationen Standard", "strategy": "breakout" },
+  { "name": "Formationen ohne Puts", "strategy": "breakout", "params": { "allowShorts": false } },
+  { "name": "Formationen Konfidenz 65", "strategy": "breakout", "params": { "minConfidence": 65 } }
+]

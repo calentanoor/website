@@ -1,0 +1,32 @@
+name: Strategie-Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: Pfad zur Experiment-Datei
+        default: scripts/experiments.json
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Kursdaten eine Woche lang wiederverwenden (gleiche Daten für alle Läufe)
+      - id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/data
+          key: prices-${{ steps.week.outputs.week }}
+      - run: npx tsx scripts/backtest.ts "${{ inputs.experiments }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: research/latest.md
