@@ -1,7 +1,7 @@
 import "server-only";
 import YahooFinance from "yahoo-finance2";
 import { cacheLife } from "next/cache";
-import { mockChart, mockIndexQuote, mockStock } from "./mock";
+import { mockChart, mockHistory, mockIndexQuote, mockStock } from "./mock";
 import type { Candle, IndexQuote, StockData } from "./types";
 
 const yahooFinance = new YahooFinance({
@@ -83,6 +83,14 @@ export async function getChart(symbol: string, range: ChartRange): Promise<Candl
     case "5y":
       return getCandles(symbol, 5 * 365, "1wk");
   }
+}
+
+// Long daily history for the strategy backtest (≈ 3 years)
+export async function getHistory(symbol: string): Promise<Candle[]> {
+  "use cache";
+  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 3 * 86400 });
+  if (mockEnabled()) return mockHistory(symbol);
+  return getCandles(symbol, 1100, "1d");
 }
 
 const toMs = (d?: Date) => (d ? d.getTime() : undefined);

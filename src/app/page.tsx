@@ -9,10 +9,23 @@ import { changeColor, formatNumber, formatPercent } from "@/lib/format";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { SignalList } from "@/components/SignalList";
+import { TopPicks } from "@/components/TopPicks";
+import { getTopPicks } from "@/lib/strategy-data";
 
 export default function Home() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <Suspense
+        fallback={
+          <div className="rounded-xl border border-border bg-surface p-6 text-center text-sm text-muted shadow-sm">
+            <div className="mx-auto mb-3 size-6 animate-spin rounded-full border-2 border-border border-t-accent" />
+            Suche die Top-Signale des Tages …
+          </div>
+        }
+      >
+        <Picks />
+      </Suspense>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Indizes</h1>
         <p className="mt-1 text-sm text-muted">
@@ -26,8 +39,15 @@ export default function Home() {
           </Suspense>
         ))}
       </div>
+      </div>
     </div>
   );
+}
+
+async function Picks() {
+  await connection();
+  const { picks, candidates } = await getTopPicks();
+  return <TopPicks picks={picks} candidates={candidates} />;
 }
 
 function CardShell({ index, children }: { index: IndexDef; children?: React.ReactNode }) {

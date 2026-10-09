@@ -16,6 +16,7 @@ const navLinks = [
   ...INDICES.filter((i) => i.constituents).map((i) => ({ href: `/index/${i.id}`, label: i.name })),
   { href: "/screener", label: "Eigene Ansicht" },
   { href: "/formationen", label: "Formationen" },
+  { href: "/strategie", label: "Strategie" },
   { href: "/optionen", label: "Optionen" },
   { href: "/watchlist", label: "★ Watchlist" },
   { href: "/kalender", label: "Kalender" },

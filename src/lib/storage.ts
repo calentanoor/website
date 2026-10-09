@@ -39,7 +39,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-function useStored<T>(key: string, fallback: T) {
+export function useStored<T>(key: string, fallback: T) {
   const value = useSyncExternalStore(
     subscribe,
     () => read(key, fallback),

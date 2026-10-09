@@ -343,11 +343,11 @@ function insights({
     if (Math.abs(diff) > 0.01) out.push(`Max Pain liegt ${formatPercent(diff * 100, 1)} vom Kurs entfernt bei ${formatNumber(expiry.maxPain)} – kurz vor Verfall kann der Kurs dorthin „gezogen“ werden (Pinning).`);
   }
   if (ivHv != null) {
-    if (ivHv > 1.25) out.push(`Optionen sind im Verhältnis zur realisierten Schwankung teuer (IV/HV ${formatNumber(ivHv, 2)}). Strategien mit Prämienverkauf (z. B. Credit Spreads, Iron Condor zwischen Put- und Call-Wall) sind tendenziell im Vorteil – Termine wie Quartalszahlen beachten.`);
-    else if (ivHv < 0.9) out.push(`Optionen sind im Verhältnis zur realisierten Schwankung günstig (IV/HV ${formatNumber(ivHv, 2)}). Long-Optionen bzw. Debit Spreads profitieren, wenn die Bewegung größer ausfällt als eingepreist.`);
+    if (ivHv > 1.25) out.push(`Optionen sind im Verhältnis zur realisierten Schwankung teuer (IV/HV ${formatNumber(ivHv, 2)}). Für Käufer von Optionsscheinen ungünstig: Die Bewegung muss größer ausfallen als eingepreist. Eher längere Laufzeiten bzw. abwarten, bis die Volatilität sinkt – Termine wie Quartalszahlen beachten.`);
+    else if (ivHv < 0.9) out.push(`Optionen sind im Verhältnis zur realisierten Schwankung günstig (IV/HV ${formatNumber(ivHv, 2)}). Gute Ausgangslage für Call- oder Put-Optionsscheine: Sie profitieren, wenn die Bewegung größer ausfällt als eingepreist.`);
     else out.push(`Implizite und realisierte Volatilität liegen nah beieinander (IV/HV ${formatNumber(ivHv, 2)}) – keine klare Über- oder Unterbewertung der Optionen.`);
   }
-  if (skew != null && skew > 0.06) out.push(`Ausgeprägter Put-Skew (${formatNumber(skew * 100, 1)} Pkt.): Absicherung nach unten ist gefragt und teuer; Put-Spreads sind günstiger als einzelne Puts.`);
+  if (skew != null && skew > 0.06) out.push(`Ausgeprägter Put-Skew (${formatNumber(skew * 100, 1)} Pkt.): Absicherung nach unten ist gefragt – Puts sind im Vergleich zu Calls teuer.`);
   if (pcr != null) {
     if (pcr > 1.3) out.push(`Hohes Put/Call-Verhältnis (${formatNumber(pcr, 2)}): viel Absicherung im Markt – konträr gelesen oft ein Zeichen pessimistischer Stimmung.`);
     else if (pcr < 0.6) out.push(`Niedriges Put/Call-Verhältnis (${formatNumber(pcr, 2)}): Calls dominieren – Hinweis auf optimistische, eventuell sorglose Stimmung.`);

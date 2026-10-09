@@ -147,3 +147,10 @@ export function realizedVol(closes: number[], n = 20): number | undefined {
   const variance = r.reduce((a, b) => a + (b - mean) ** 2, 0) / (r.length - 1);
   return Math.sqrt(variance * 252);
 }
+
+export function bsPrice(spot: number, strike: number, t: number, iv: number, rate: number, type: "call" | "put") {
+  const a = d1(spot, strike, t, iv, rate);
+  const b = a - iv * Math.sqrt(t);
+  const disc = Math.exp(-rate * t);
+  return type === "call" ? spot * cdf(a) - strike * disc * cdf(b) : strike * disc * cdf(-b) - spot * cdf(-a);
+}

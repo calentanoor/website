@@ -11,13 +11,15 @@
 // confidence and an options strategy idea.
 import { atr, last, sma } from "./indicators";
 import type { Candle } from "./types";
+import { realizedVol } from "./options-math";
+import { warrantIdea, type WarrantIdea } from "./warrant";
 
 export type Direction = "bullish" | "bearish" | "neutral";
 export type PatternStatus = "forming" | "breakout" | "breakdown";
 
 export type PatternLine = { from: { time: number; price: number }; to: { time: number; price: number }; kind: "pattern" | "trigger" | "target" };
 
-export type OptionsIdea = { strategy: string; legs: string; rationale: string };
+export type OptionsIdea = { strategy: string; legs: string; rationale: string; warrant?: WarrantIdea };
 
 export type Pattern = {
   id: string;
@@ -28,6 +30,7 @@ export type Pattern = {
   confidence: number; // 0–100
   startTime: number;
   endTime: number;
+  breakoutTime?: number; // bar of the confirming break (unix seconds)
   trigger?: number; // level whose break confirms the pattern
   target?: number;
   stop?: number;
@@ -133,6 +136,7 @@ function doubleTopBottom(ctx: Ctx, pivots: Pivot[]): Pattern[] {
       label: bottom ? "Doppelboden" : "Doppeltop",
       direction: bottom ? "bullish" : "bearish",
       status: brk >= 0 ? (bottom ? "breakout" : "breakdown") : "forming",
+      breakoutTime: brk >= 0 ? t(ctx, brk) : undefined,
       confidence: Math.round(confidence),
       startTime: t(ctx, a.i),
       endTime: t(ctx, brk >= 0 ? brk : ctx.n - 1),
@@ -179,6 +183,7 @@ function headAndShoulders(ctx: Ctx, pivots: Pivot[]): Pattern[] {
       label: top ? "Schulter-Kopf-Schulter" : "Inverse SKS",
       direction: top ? "bearish" : "bullish",
       status: brk >= 0 ? (top ? "breakdown" : "breakout") : "forming",
+      breakoutTime: brk >= 0 ? t(ctx, brk) : undefined,
       confidence: Math.round(clamp(45 + (brk >= 0 ? 10 + volumeBoost(ctx, brk) : 0) - (s2.tentative ? 10 : 0) + (Math.abs(slope) < ctx.atr / 20 ? 5 : 0))),
       startTime: t(ctx, s1.i),
       endTime: t(ctx, brk >= 0 ? brk : ctx.n - 1),
@@ -268,6 +273,7 @@ function trendlinePatterns(ctx: Ctx, pivots: Pivot[]): Pattern[] {
     label: kind.label,
     direction,
     status,
+    breakoutTime: brk >= 0 ? t(ctx, brk) : undefined,
     confidence: Math.round(clamp(25 + Math.min(touches, 6) * 5 + (brk >= 0 ? 10 + volumeBoost(ctx, brk) : 0) - ((up.error + lo.error) / ctx.atr) * 8)),
     startTime: t(ctx, start),
     endTime: t(ctx, end),
@@ -318,6 +324,7 @@ function flags(ctx: Ctx): Pattern[] {
       label: bull ? "Bullische Flagge" : "Bärische Flagge",
       direction: bull ? "bullish" : "bearish",
       status,
+      breakoutTime: brk >= 0 ? t(ctx, brk) : undefined,
       confidence: Math.round(clamp(40 + (0.5 - retrace) * 30 + (brk >= 0 ? 10 + volumeBoost(ctx, brk) : 0))),
       startTime: t(ctx, best.from),
       endTime: t(ctx, ctx.n - 1),
@@ -370,6 +377,7 @@ function levelBreakouts(ctx: Ctx, levels: Level[]): Pattern[] {
       label: up ? "Ausbruch über Widerstand" : "Bruch der Unterstützung",
       direction: up ? "bullish" : "bearish",
       status: up ? "breakout" : "breakdown",
+      breakoutTime: t(ctx, brk),
       confidence: Math.round(clamp(35 + Math.min(l.touches, 6) * 5 + volumeBoost(ctx, brk))),
       startTime: t(ctx, Math.max(0, ctx.n - 120)),
       endTime: t(ctx, ctx.n - 1),
@@ -383,33 +391,28 @@ function levelBreakouts(ctx: Ctx, levels: Level[]): Pattern[] {
 }
 
 // ---------------------------------------------------------------------------
-// Options strategy ideas (educational; strikes rounded to typical increments)
+// Warrant ideas: plain call or put, at the money, ~3 months
 
-function strikeStep(price: number) {
-  return price < 25 ? 0.5 : price < 100 ? 1 : price < 250 ? 5 : price < 1000 ? 10 : 50;
-}
-
-function ideaFor(p: Pattern, price: number, durationDays: number): OptionsIdea {
-  const step = strikeStep(price);
-  const r = (v: number) => fmt(Math.round(v / step) * step);
-  const dte = `${Math.round(Math.min(90, Math.max(21, durationDays * 0.7)) / 7) * 7} Tage`;
+function ideaFor(p: Pattern, price: number, vol: number): OptionsIdea {
+  if (p.direction === "neutral") {
+    const upper = p.lines[0]?.to.price ?? price * 1.05;
+    const lower = p.lines[1]?.to.price ?? price * 0.95;
+    return {
+      strategy: "Abwarten",
+      legs: `Call bei Schlusskurs über ${fmt(upper)}, Put bei Schlusskurs unter ${fmt(lower)}`,
+      rationale: "Richtung noch offen – erst den Ausbruch abwarten, dann Optionsschein in Ausbruchsrichtung.",
+    };
+  }
+  const w = warrantIdea(p.direction, price, vol);
   const confirmed = p.status !== "forming";
-
-  if (p.direction === "bullish") {
-    return confirmed && p.target
-      ? { strategy: "Bull Call Spread", legs: `Kauf Call ${r(price)} / Verkauf Call ${r(p.target)}, Laufzeit ca. ${dte}`, rationale: "Bestätigter Ausbruch: begrenztes Risiko, Gewinn bis zum Kursziel der Formation." }
-      : { strategy: "Bull Put Spread", legs: `Verkauf Put ${r(p.stop ?? price * 0.95)} / Kauf Put ${r((p.stop ?? price * 0.95) - 2 * step)}, Laufzeit ca. ${dte}`, rationale: `Prämie vereinnahmen, solange die Unterstützung hält; aggressiver erst nach Schlusskurs über ${fmt(p.trigger ?? price)}.` };
-  }
-  if (p.direction === "bearish") {
-    return confirmed && p.target
-      ? { strategy: "Bear Put Spread", legs: `Kauf Put ${r(price)} / Verkauf Put ${r(p.target)}, Laufzeit ca. ${dte}`, rationale: "Bestätigter Bruch: begrenztes Risiko, Gewinn bis zum Kursziel der Formation." }
-      : { strategy: "Bear Call Spread", legs: `Verkauf Call ${r(p.stop ?? price * 1.05)} / Kauf Call ${r((p.stop ?? price * 1.05) + 2 * step)}, Laufzeit ca. ${dte}`, rationale: `Prämie vereinnahmen, solange der Widerstand hält; Bestätigung bei Schlusskurs unter ${fmt(p.trigger ?? price)}.` };
-  }
-  const upper = p.lines[0]?.to.price ?? price * 1.05;
-  const lower = p.lines[1]?.to.price ?? price * 0.95;
-  return p.type === "range"
-    ? { strategy: "Iron Condor", legs: `Verkauf Put ${r(lower)} / Call ${r(upper)}, Absicherung je ${fmt(2 * step)} weiter außen, Laufzeit ca. ${dte}`, rationale: "Seitwärtsphase: profitiert, solange der Kurs innerhalb der Range bleibt." }
-    : { strategy: "Long Strangle", legs: `Kauf Call ${r(upper)} + Kauf Put ${r(lower)}, Laufzeit ca. ${dte}`, rationale: "Zusammenlaufende Formation: Ausbruch erwartet, Richtung offen. Am günstigsten bei niedriger impliziter Volatilität." };
+  return {
+    strategy: `${w.type}-Optionsschein`,
+    legs: `Basis ${fmt(w.strike)}, Laufzeit ≥ 3 Monate, Hebel ca. ${fmt(Math.round(w.leverage * 10) / 10)}`,
+    rationale: confirmed
+      ? `Ausbruch bestätigt. Kursziel ${p.target ? fmt(p.target) : "–"}, Stopp im Basiswert ${p.stop ? fmt(p.stop) : "–"}.`
+      : `Noch in Bildung – Einstieg erst bei Schlusskurs ${p.direction === "bullish" ? "über" : "unter"} ${fmt(p.trigger ?? price)}.`,
+    warrant: w,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +438,7 @@ export function detectPatterns(candles: Candle[]): PatternResult {
     ...levelBreakouts(ctx, levels),
   ]
     .sort((a, b) => b.confidence - a.confidence)
-    .map((p) => ({ ...p, idea: ideaFor(p, ctx.price, (p.endTime - p.startTime) / 86400) }));
+    .map((p) => ({ ...p, idea: ideaFor(p, ctx.price, realizedVol(c.map((x) => x.close), 60) ?? 0.3) }));
 
   return { patterns, levels: levels.slice(0, 6) };
 }
