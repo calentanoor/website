@@ -6,6 +6,7 @@ import { realizedVol } from "../options-math";
 import { strikeStep } from "../warrant";
 import { DEFAULT_SETTINGS } from "./defaults";
 import { callPrice, omega } from "./model";
+import { PULLBACK_RULES, pullbackMetrics, pullbackScore, qualifiesForPullback, type PullbackMetrics } from "./pullback";
 
 export type WarrantProfile = {
   months: number;
@@ -29,8 +30,17 @@ export type StrategyPick = {
   perf6m?: number;
   analystScore?: number;
   earningsDate?: number;
+  marketCapEur?: number;
+  drawdownPct?: number; // below the 52-week high, positive number
   reasons: string[];
   profile?: WarrantProfile;
+};
+
+export type PicksResult = {
+  pullback: StrategyPick[]; // quality in a pullback (default list)
+  strength: StrategyPick[]; // fundamental and technical score ≥ 60
+  counts: { pullback: number; strength: number; universe: number };
+  minMarketCapEur: number;
 };
 
 const TARGET_OMEGA = 2.75;
@@ -68,42 +78,92 @@ function profileFor(S: number, vol: number, eurusd?: number, currency?: string):
   return undefined;
 }
 
-// Strongest stocks for the warrant strategy: fundamental and technical score
-// ≥ 60, ranked by their average; with a suggested call profile.
-export async function getStrategyPicks(limit = 10): Promise<{ picks: StrategyPick[]; candidates: number }> {
+const pct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)} %`;
+
+// Both recommendation lists for the warrant strategy. Only companies with a
+// market cap of at least 20 bn EUR (enough long-dated warrants on them).
+export async function getStrategyPicks(limit = 10): Promise<PicksResult> {
   const symbols = [...new Set(INDICES.flatMap((i) => i.constituents ?? []))];
   const [rows, eurusd] = await Promise.all([buildRows(symbols), getEurUsd().catch(() => undefined)]);
-  const eligible = rows
-    .filter((r) => !r.error && r.fundamental != null && r.technical != null && r.fundamental >= 60 && r.technical >= 60 && r.price)
-    .map((r) => ({ r, score: (r.fundamental! + r.technical!) / 2 }))
-    .sort((a, b) => b.score - a.score || b.r.technical! - a.r.technical!);
+  const capEur = (cap?: number, currency?: string) => (cap == null ? undefined : currency === "USD" ? (eurusd ? cap / eurusd : undefined) : cap);
+  const large = rows
+    .filter((r) => !r.error && r.fundamental != null && r.price)
+    .map((r) => ({ r, cap: capEur(r.marketCap, r.currency) }))
+    .filter((x) => x.cap != null && x.cap >= PULLBACK_RULES.minMarketCapEur);
 
-  const picks = await Promise.all(
-    eligible.slice(0, limit).map(async ({ r, score }): Promise<StrategyPick> => {
-      const stock = await getStockSafe(r.symbol);
-      const vol = "error" in stock ? undefined : realizedVol(stock.candles.map((c) => c.close), 60);
-      const reasons = [
-        `Fundamental ${r.fundamental} · Technik ${r.technical}`,
-        r.perf6m != null ? `6 Monate ${r.perf6m >= 0 ? "+" : ""}${r.perf6m.toFixed(0)} %` : undefined,
-        r.analystScore != null && r.analystScore >= 70 ? `Analysten ${r.recommendation ?? "positiv"}` : undefined,
-        ...r.signals.filter((s) => s.tone === "bullish").slice(0, 1).map((s) => s.short),
-      ].filter((x): x is string => !!x);
-      return {
-        symbol: r.symbol,
-        name: r.name,
-        currency: r.currency ?? "",
-        price: r.price!,
-        changePercent: r.changePercent,
-        fundamental: r.fundamental!,
-        technical: r.technical!,
-        score: Math.round(score),
-        perf6m: r.perf6m,
-        analystScore: r.analystScore,
-        earningsDate: r.earningsDate,
-        reasons,
-        profile: vol ? profileFor(r.price!, Math.max(0.15, vol), eurusd, r.currency) : undefined,
-      };
-    }),
+  // price history for the pullback metrics and the warrant profile (cached per symbol)
+  const stocks = new Map(await Promise.all(large.map(async ({ r }) => [r.symbol, await getStockSafe(r.symbol)] as const)));
+  const metricsOf = (symbol: string): PullbackMetrics | undefined => {
+    const st = stocks.get(symbol);
+    return st && !("error" in st) ? pullbackMetrics(st.candles) : undefined;
+  };
+
+  const toPick = ({ r, cap }: (typeof large)[number], score: number, reasons: string[]): StrategyPick => {
+    const st = stocks.get(r.symbol);
+    const vol = st && !("error" in st) ? realizedVol(st.candles.map((c) => c.close), 60) : undefined;
+    const m = metricsOf(r.symbol);
+    return {
+      symbol: r.symbol,
+      name: r.name,
+      currency: r.currency ?? "",
+      price: r.price!,
+      changePercent: r.changePercent,
+      fundamental: r.fundamental!,
+      technical: r.technical ?? 0,
+      score: Math.round(score),
+      perf6m: r.perf6m,
+      analystScore: r.analystScore,
+      earningsDate: r.earningsDate,
+      marketCapEur: cap,
+      drawdownPct: m ? m.drawdown * 100 : undefined,
+      reasons,
+      profile: vol ? profileFor(r.price!, Math.max(0.15, vol), eurusd, r.currency) : undefined,
+    };
+  };
+
+  // 1) quality in a pullback
+  const pullbackRanked = large
+    .map((x) => ({ x, m: metricsOf(x.r.symbol) }))
+    .filter(({ x, m }) => m && qualifiesForPullback(m, x.r.fundamental!, x.cap))
+    .map(({ x, m }) => ({ x, m: m!, score: pullbackScore(m!, x.r.fundamental!, x.r.targetUpside) }))
+    .sort((a, b) => b.score - a.score);
+  const pullback = pullbackRanked.slice(0, limit).map(({ x, m, score }) =>
+    toPick(
+      x,
+      score,
+      [
+        `Fundamental ${x.r.fundamental}`,
+        `${pct(-m.drawdown * 100)} vom Hoch`,
+        x.r.targetUpside != null ? `Kursziel ${pct(x.r.targetUpside)}` : undefined,
+        m.rsi != null ? `RSI ${m.rsi.toFixed(0)}${m.rsiRising ? " ↑" : ""}` : undefined,
+        m.ret5d != null && m.ret5d > 0.0005 ? `5 Tage +${(m.ret5d * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %` : undefined,
+        m.vsSma200 == null ? undefined : Math.abs(m.vsSma200) < 0.005 ? "an der SMA 200" : m.vsSma200 > 0 ? "über SMA 200" : `${(m.vsSma200 * 100).toFixed(0)} % unter SMA 200`,
+      ].filter((v): v is string => !!v),
+    ),
   );
-  return { picks, candidates: eligible.length };
+
+  // 2) strength: fundamental and technical score ≥ 60
+  const strengthRanked = large
+    .filter(({ r }) => r.technical != null && r.fundamental! >= 60 && r.technical >= 60)
+    .map((x) => ({ x, score: (x.r.fundamental! + x.r.technical!) / 2 }))
+    .sort((a, b) => b.score - a.score || b.x.r.technical! - a.x.r.technical!);
+  const strength = strengthRanked.slice(0, limit).map(({ x, score }) =>
+    toPick(
+      x,
+      score,
+      [
+        `Fundamental ${x.r.fundamental} · Technik ${x.r.technical}`,
+        x.r.perf6m != null ? `6 Monate ${pct(x.r.perf6m)}` : undefined,
+        x.r.analystScore != null && x.r.analystScore >= 70 ? `Analysten ${x.r.recommendation ?? "positiv"}` : undefined,
+        ...x.r.signals.filter((sg) => sg.tone === "bullish").slice(0, 1).map((sg) => sg.short),
+      ].filter((v): v is string => !!v),
+    ),
+  );
+
+  return {
+    pullback,
+    strength,
+    counts: { pullback: pullbackRanked.length, strength: strengthRanked.length, universe: large.length },
+    minMarketCapEur: PULLBACK_RULES.minMarketCapEur,
+  };
 }

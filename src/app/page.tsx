@@ -23,8 +23,7 @@ export default function Home() {
 
 async function Picks() {
   await connection();
-  const { picks, candidates } = await getStrategyPicks(10);
-  return <StrategyPicks picks={picks} candidates={candidates} />;
+  return <StrategyPicks result={await getStrategyPicks(10)} />;
 }
 
 function Loading({ text }: { text: string }) {
