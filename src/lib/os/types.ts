@@ -21,6 +21,14 @@ export type Buy = {
   amount: number; // EUR
 };
 
+export type Sell = {
+  id: string;
+  date: string; // ISO date
+  warrantId: string;
+  price: number; // EUR per warrant (bid received)
+  quantity: number; // pieces sold
+};
+
 export type Position = {
   id: string;
   symbol: string;
@@ -28,9 +36,10 @@ export type Position = {
   sector: string;
   warrants: Warrant[];
   buys: Buy[];
+  sells?: Sell[];
   status: "open" | "closed";
   closedDate?: string;
-  closedValue?: number; // EUR proceeds when closed
+  closedValue?: number; // legacy: EUR proceeds when closed without recorded sales
   stockPrice?: number; // manual share price (USD), overrides the live price
   stockPriceAsOf?: string;
   earningsDate?: string; // manual next earnings date (ISO)

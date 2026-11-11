@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { fmtEur, fmtPct, sharesByWarrant, sortedBuys, type PositionView, type Tone } from "@/lib/os/ladder";
+import { fmtEur, fmtPct, sortedBuys, sortedSells, tradeStats, type PositionView, type Tone } from "@/lib/os/ladder";
 import type { CandidateView } from "@/lib/os/finder";
-import type { Buy, Position, Settings, Warrant } from "@/lib/os/types";
+import type { Buy, Position, Sell, Settings, Warrant } from "@/lib/os/types";
 import { LadderBar } from "./LadderBar";
 import { Field, NumInput, buttonClass, fmtAge, fmtDate, inputClass, nowIso, primaryButtonClass, today, uid } from "./inputs";
 
@@ -28,13 +28,17 @@ type Props = {
   onChange: (p: Position) => void;
   onDelete: () => void;
   onOpenFinder: (symbol: string) => void;
+  mergeTargets?: { id: string; label: string }[]; // other positions of the same share
+  onMerge?: (otherId: string) => void;
 };
 
-export function PositionCard({ view: v, settings, stockPrice, stockPriceSource, earningsDate, best, onChange, onDelete, onOpenFinder }: Props) {
+export function PositionCard({ view: v, settings, stockPrice, stockPriceSource, earningsDate, best, onChange, onDelete, onOpenFinder, mergeTargets = [], onMerge }: Props) {
   const p = v.position;
-  const [panel, setPanel] = useState<null | "buy" | "warrant" | "edit">(null);
+  const [panel, setPanel] = useState<null | "buy" | "sell" | "sellAll" | "warrant" | "edit">(null);
   const [editWarrant, setEditWarrant] = useState<Warrant | null>(null);
-  const shares = sharesByWarrant(p);
+  const stats = tradeStats(p);
+  const active = p.status === "open" && v.stage > 0 && stats.perWarrant.some((w) => w.held > 0);
+  const sells = sortedSells(p);
   const tone = TONE[v.action.tone];
   const update = (patch: Partial<Position>) => onChange({ ...p, ...patch });
   const setWarrant = (w: Warrant) => update({ warrants: p.warrants.some((x) => x.id === w.id) ? p.warrants.map((x) => (x.id === w.id ? w : x)) : [...p.warrants, w] });
@@ -86,9 +90,10 @@ export function PositionCard({ view: v, settings, stockPrice, stockPriceSource, 
         </div>
       )}
 
-      {v.stage > 0 && <LadderBar levels={v.levels} />}
+      {/* ladder and levels only while pieces are held */}
+      {active && <LadderBar levels={v.levels} />}
 
-      {v.levels.length > 1 && (
+      {active && v.levels.length > 1 && (
         <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
           {v.levels.map((l) => (
             <div key={l.key} className="flex justify-between gap-2 border-b border-border/50 pb-1">
@@ -120,8 +125,8 @@ export function PositionCard({ view: v, settings, stockPrice, stockPriceSource, 
               </div>
               <div className="text-xs text-muted">
                 Basis {w.strike.toLocaleString("de-DE")} USD · fällig {fmtDate(w.expiry)} · BV {w.ratio.toLocaleString("de-DE")}
-                {shares.get(w.id) ? ` · ${shares.get(w.id)!.toLocaleString("de-DE", { maximumFractionDigits: 0 })} Stück` : ""}
               </div>
+              <WarrantLine stat={stats.perWarrant.find((x) => x.warrant.id === w.id)} />
             </div>
             <div className="w-32">
               <Field label={`Geld (Bid) € · ${fmtAge(w.bidAsOf)}`}>
@@ -152,30 +157,127 @@ export function PositionCard({ view: v, settings, stockPrice, stockPriceSource, 
         </section>
       )}
 
+      {sells.length > 0 && (
+        <section>
+          <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">Verkäufe</h4>
+          <ul className="divide-y divide-border/60 text-sm">
+            {sells.map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-2 py-1 tabular-nums">
+                <span>
+                  {fmtDate(x.date)} · {p.warrants.find((w) => w.id === x.warrantId)?.wkn || "?"}
+                </span>
+                <span className="flex items-center gap-3">
+                  {x.quantity.toLocaleString("de-DE", { maximumFractionDigits: 2 })} Stück zu {fmtEur(x.price)} = {fmtEur(x.quantity * x.price)}
+                  <button onClick={() => confirm("Verkauf löschen?") && update({ sells: (p.sells ?? []).filter((y) => y.id !== x.id) })} className="text-xs text-muted hover:text-down" aria-label="Verkauf löschen">✕</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted tabular-nums">
+            Erlös {fmtEur(stats.proceeds)} · realisiert {fmtEur(stats.realizedPl)}
+            {stats.returnPct != null && <> · Rendite <span className={stats.returnPct >= 0 ? "text-up" : "text-down"}>{fmtPct(stats.returnPct)}</span></>}
+            {stats.days != null && ` · ${stats.days} Tage`}
+          </p>
+        </section>
+      )}
+      {p.status === "closed" && !sells.length && p.closedValue != null && (
+        <p className="text-xs text-muted">Ohne erfasste Verkäufe geschlossen, Erlös laut Abschluss {fmtEur(p.closedValue)}. Für genaue Werte Verkäufe nachtragen.</p>
+      )}
+
       <div className="flex flex-wrap gap-2">
-        {p.status === "open" && (
-          <>
-            <button onClick={() => setPanel(panel === "buy" ? null : "buy")} className={primaryButtonClass}>Kauf erfassen</button>
-            <button onClick={() => { setEditWarrant(null); setPanel(panel === "warrant" ? null : "warrant"); }} className={buttonClass}>Schein hinzufügen</button>
-          </>
-        )}
+        <button onClick={() => setPanel(panel === "buy" ? null : "buy")} className={p.status === "open" ? primaryButtonClass : buttonClass}>Kauf erfassen</button>
+        <button disabled={!p.buys.length} onClick={() => setPanel(panel === "sell" ? null : "sell")} className={buttonClass}>Verkauf erfassen</button>
+        <button onClick={() => { setEditWarrant(null); setPanel(panel === "warrant" ? null : "warrant"); }} className={buttonClass}>Schein hinzufügen</button>
         <button onClick={() => setPanel(panel === "edit" ? null : "edit")} className={buttonClass}>Position bearbeiten</button>
         {p.status === "open" ? (
-          <button
-            onClick={() => confirm(`${p.symbol} als verkauft schließen${v.value ? ` (Erlös ca. ${fmtEur(v.value)})` : ""}?`) && update({ status: "closed", closedDate: today(), closedValue: v.value })}
-            className={buttonClass}
-          >
-            Verkauft – schließen
+          <button onClick={() => setPanel(panel === "sellAll" ? null : "sellAll")} className={buttonClass}>
+            {stats.perWarrant.some((w) => w.held > 0) ? "Alles verkaufen & schließen" : "Schließen"}
           </button>
         ) : (
           <button onClick={() => update({ status: "open", closedDate: undefined, closedValue: undefined })} className={buttonClass}>Wieder öffnen</button>
         )}
       </div>
 
+      {(panel === "sell" || panel === "sellAll") && (
+        <SellForm
+          position={p}
+          all={panel === "sellAll"}
+          onSave={(newSells, close) => {
+            const last = [...newSells].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.date ?? today();
+            update({ sells: [...(p.sells ?? []), ...newSells], ...(close ? { status: "closed" as const, closedDate: last, closedValue: undefined } : {}) });
+            setPanel(null);
+          }}
+        />
+      )}
       {panel === "buy" && <BuyForm position={p} settings={settings} suggested={v.action.kind === "add" ? (v.action.addMultiple ?? 1) * settings.x : v.stage ? v.nextAddAmount : settings.x} onSave={(b) => { update({ buys: [...p.buys, b] }); setPanel(null); }} />}
       {panel === "warrant" && <WarrantForm initial={editWarrant} onSave={(w) => { setWarrant(w); setPanel(null); }} onDelete={editWarrant && !p.buys.some((b) => b.warrantId === editWarrant.id) ? () => { update({ warrants: p.warrants.filter((x) => x.id !== editWarrant.id) }); setPanel(null); } : undefined} />}
-      {panel === "edit" && <PositionForm position={p} onSave={(patch) => { update(patch); setPanel(null); }} onDelete={onDelete} />}
+      {panel === "edit" && <PositionForm position={p} onSave={(patch) => { update(patch); setPanel(null); }} onDelete={onDelete} mergeTargets={mergeTargets} onMerge={onMerge} />}
     </article>
+  );
+}
+
+function WarrantLine({ stat }: { stat?: ReturnType<typeof tradeStats>["perWarrant"][number] }) {
+  if (!stat || !stat.bought) return <div className="text-xs text-muted">noch nicht gekauft</div>;
+  const pl = stat.avgBuy && stat.warrant.bid != null && stat.held > 0 ? (stat.warrant.bid / stat.avgBuy - 1) * 100 : undefined;
+  const n = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 0 });
+  return (
+    <div className="text-xs tabular-nums">
+      {n(stat.held)} von {n(stat.bought)} Stück gehalten · Ø Kauf {fmtEur(stat.avgBuy)}
+      {stat.held > 0 && stat.value != null && <> · Wert {fmtEur(stat.value)}</>}
+      {pl != null && <span className={pl >= 0 ? " text-up" : " text-down"}> ({fmtPct(pl)})</span>}
+      {stat.sold > 0 && <> · verkauft Ø {fmtEur(stat.avgSell)}</>}
+    </div>
+  );
+}
+
+// Sale of one warrant, or ("all") of every piece still held at the current bids.
+function SellForm({ position: p, all, onSave }: { position: Position; all: boolean; onSave: (sells: Sell[], close: boolean) => void }) {
+  const stats = tradeStats(p).perWarrant.filter((w) => w.bought > 0);
+  const heldStats = stats.filter((w) => w.held > 0);
+  const [date, setDate] = useState(today());
+  const [rows, setRows] = useState(() =>
+    (all ? heldStats : [heldStats[0] ?? stats[0]].filter(Boolean)).map((w) => ({ warrantId: w.warrant.id, quantity: w.held || undefined, price: w.warrant.bid })),
+  );
+  const [close, setClose] = useState(all);
+  const setRow = (i: number, patch: Partial<(typeof rows)[number]>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const valid = rows.filter((r) => r.warrantId && r.quantity && r.quantity > 0 && r.price != null && r.price >= 0);
+  const proceeds = valid.reduce((a, r) => a + r.quantity! * r.price!, 0);
+  const sellsAll = heldStats.every((w) => valid.filter((r) => r.warrantId === w.warrant.id).reduce((a, r) => a + r.quantity!, 0) >= w.held - 1e-6);
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Field label="Verkaufsdatum"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} /></Field>
+      </div>
+      {rows.map((r, i) => {
+        const st = stats.find((w) => w.warrant.id === r.warrantId);
+        return (
+          <div key={i} className="grid gap-3 sm:grid-cols-4">
+            <Field label="Schein">
+              <select value={r.warrantId} onChange={(e) => { const w = stats.find((x) => x.warrant.id === e.target.value); setRow(i, { warrantId: e.target.value, quantity: w?.held || undefined, price: w?.warrant.bid }); }} className={inputClass}>
+                {stats.map((w) => <option key={w.warrant.id} value={w.warrant.id}>{w.warrant.wkn || "ohne WKN"} ({w.held.toLocaleString("de-DE", { maximumFractionDigits: 0 })} Stück)</option>)}
+              </select>
+            </Field>
+            <Field label="Stück" hint={st ? `gehalten ${st.held.toLocaleString("de-DE", { maximumFractionDigits: 2 })}` : undefined}><NumInput value={r.quantity} digits={2} onChange={(quantity) => setRow(i, { quantity })} /></Field>
+            <Field label="Verkaufspreis je Schein (€)"><NumInput value={r.price} digits={3} onChange={(price) => setRow(i, { price })} /></Field>
+            <div className="flex items-end text-sm tabular-nums text-muted">= {fmtEur(r.quantity && r.price != null ? r.quantity * r.price : undefined)}</div>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm tabular-nums">Erlös {fmtEur(proceeds)}</span>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={close} onChange={(e) => setClose(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+          Position danach schließen{sellsAll ? "" : " (es bleiben Stücke übrig)"}
+        </label>
+        <button
+          disabled={!valid.length}
+          onClick={() => onSave(valid.map((r) => ({ id: uid(), date, warrantId: r.warrantId, quantity: r.quantity!, price: r.price! })), close)}
+          className={primaryButtonClass}
+        >
+          Verkauf speichern
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -224,7 +326,8 @@ export function WarrantForm({ initial, onSave, onDelete }: { initial: Warrant | 
   );
 }
 
-function PositionForm({ position: p, onSave, onDelete }: { position: Position; onSave: (patch: Partial<Position>) => void; onDelete: () => void }) {
+function PositionForm({ position: p, onSave, onDelete, mergeTargets = [], onMerge }: { position: Position; onSave: (patch: Partial<Position>) => void; onDelete: () => void; mergeTargets?: { id: string; label: string }[]; onMerge?: (otherId: string) => void }) {
+  const [mergeId, setMergeId] = useState(mergeTargets[0]?.id ?? "");
   const [f, setF] = useState({ symbol: p.symbol, name: p.name ?? "", sector: p.sector, stockPrice: p.stockPrice, earningsDate: p.earningsDate ?? "", note: p.note ?? "" });
   return (
     <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-3">
@@ -243,6 +346,16 @@ function PositionForm({ position: p, onSave, onDelete }: { position: Position; o
         </button>
         <button onClick={() => confirm("Position mit allen Teilkäufen löschen?") && onDelete()} className={`${buttonClass} text-down`}>Position löschen</button>
       </div>
+      {onMerge && mergeTargets.length > 0 && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3 sm:col-span-3">
+          <Field label={`Andere ${p.symbol}-Position hier hinein übernehmen`} hint="Scheine, Käufe und Verkäufe werden zusammengelegt, die andere Position entfällt.">
+            <select value={mergeId} onChange={(e) => setMergeId(e.target.value)} className={inputClass}>
+              {mergeTargets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </Field>
+          <button disabled={!mergeId} onClick={() => confirm("Positionen zusammenführen?") && onMerge(mergeId)} className={buttonClass}>Zusammenführen</button>
+        </div>
+      )}
     </div>
   );
 }

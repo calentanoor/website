@@ -30,7 +30,8 @@ Produktiv: `npm run build && npm start`.
   (x · x · 2x, Ziel +20 % auf den Einstand, bei 4x Ausstieg bei ±0), Ampel „Nächster Schritt“,
   Leitplanken (Verlust-/Zeit-Stopp, Quartalszahlen, Sektor-Budget, Restlaufzeit) und
   Schein-Finder (Filter Omega/Laufzeit/Basis/Spread, Ranking nach Zeitwertverlust, IV, Vega,
-  Spread). Rechenlogik in `src/lib/os/` (Black-Scholes, Leiter, Finder) mit Unit-Tests
+  Spread), Verkäufe (auch Teilverkäufe und nachträglich) mit Historie und Rendite je Trade,
+  mehrere Scheine je Aktie in einer Position (zusammenführbar). Rechenlogik in `src/lib/os/` (Black-Scholes, Leiter, Finder) mit Unit-Tests
   (`npm test`). Daten im Browser (localStorage) mit JSON-Export/-Import; Aktienkurse,
   Quartalstermine und EUR/USD über `/api/os-market`. Der frühere Backtest liegt unter
   `/strategie/backtest`.

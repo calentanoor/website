@@ -4,7 +4,7 @@
 // and the "±0" rule always refer to all purchases together. Price levels are
 // expressed in the price of the warrant bought last (the reference warrant):
 // with several warrants they assume all warrants move by the same percentage.
-import type { Buy, Position, Settings, Warrant } from "./types";
+import type { Buy, Position, Sell, Settings, Warrant } from "./types";
 
 export type Tone = "green" | "yellow" | "red" | "orange" | "white" | "grey";
 
@@ -58,11 +58,94 @@ export function sortedBuys(p: Position): Buy[] {
   return [...p.buys].sort((a, b) => ts(a.date) - ts(b.date));
 }
 
-// Shares (warrants) bought per warrant id
+export function sortedSells(p: Position): Sell[] {
+  return [...(p.sells ?? [])].sort((a, b) => ts(a.date) - ts(b.date));
+}
+
+// Pieces still held per warrant id (bought minus sold)
 export function sharesByWarrant(p: Position): Map<string, number> {
   const m = new Map<string, number>();
   for (const b of p.buys) if (b.price > 0) m.set(b.warrantId, (m.get(b.warrantId) ?? 0) + b.amount / b.price);
+  for (const s of p.sells ?? []) m.set(s.warrantId, (m.get(s.warrantId) ?? 0) - s.quantity);
+  for (const [k, v] of m) if (v < 1e-6) m.set(k, 0);
   return m;
+}
+
+export type WarrantStats = { warrant: Warrant; bought: number; sold: number; held: number; cost: number; proceeds: number; avgBuy?: number; avgSell?: number; value?: number };
+
+export type TradeStats = {
+  invested: number;
+  proceeds: number; // sales so far
+  realizedPl: number; // proceeds minus the average cost of the pieces sold
+  fullySold: boolean;
+  returnPct?: number; // only when fully sold: proceeds / invested − 1
+  firstBuy?: string;
+  lastSell?: string;
+  days?: number;
+  perWarrant: WarrantStats[];
+};
+
+// Bought, sold and held pieces per warrant plus realised result (average-cost method).
+export function tradeStats(p: Position): TradeStats {
+  const perWarrant = p.warrants.map((w) => {
+    const buys = p.buys.filter((b) => b.warrantId === w.id);
+    const sells = (p.sells ?? []).filter((s) => s.warrantId === w.id);
+    const bought = buys.reduce((a, b) => a + (b.price > 0 ? b.amount / b.price : 0), 0);
+    const sold = sells.reduce((a, s) => a + s.quantity, 0);
+    const cost = buys.reduce((a, b) => a + b.amount, 0);
+    const proceeds = sells.reduce((a, s) => a + s.quantity * s.price, 0);
+    const held = Math.max(0, bought - sold);
+    return {
+      warrant: w,
+      bought,
+      sold,
+      held: held < 1e-6 ? 0 : held,
+      cost,
+      proceeds,
+      avgBuy: bought > 0 ? cost / bought : undefined,
+      avgSell: sold > 0 ? proceeds / sold : undefined,
+      value: held >= 1e-6 && w.bid != null ? held * w.bid : held < 1e-6 ? 0 : undefined,
+    };
+  });
+  const invested = perWarrant.reduce((a, w) => a + w.cost, 0);
+  const hasSells = (p.sells?.length ?? 0) > 0;
+  // closed before sales were recorded: only the total proceeds are known
+  const legacy = !hasSells && p.status === "closed" && p.closedValue != null;
+  const proceeds = legacy ? p.closedValue! : perWarrant.reduce((a, w) => a + w.proceeds, 0);
+  const realizedPl = legacy ? p.closedValue! - invested : perWarrant.reduce((a, w) => a + (w.sold && w.avgBuy ? w.proceeds - w.sold * w.avgBuy : 0), 0);
+  const fullySold = invested > 0 && (legacy || (hasSells && perWarrant.every((w) => w.held === 0)));
+  const buys = sortedBuys(p);
+  const sells = sortedSells(p);
+  const firstBuy = buys[0]?.date;
+  const lastSell = sells.at(-1)?.date ?? (p.status === "closed" ? p.closedDate : undefined);
+  return {
+    invested,
+    proceeds,
+    realizedPl,
+    fullySold,
+    returnPct: fullySold && invested ? (proceeds / invested - 1) * 100 : undefined,
+    firstBuy,
+    lastSell,
+    days: firstBuy && lastSell ? Math.round((ts(lastSell) - ts(firstBuy)) / DAY) : undefined,
+    perWarrant,
+  };
+}
+
+export type HistoryStats = { trades: number; wins: number; winRate?: number; invested: number; pl: number; avgReturn?: number; avgDays?: number };
+
+export function historyStats(positions: Position[]): HistoryStats {
+  const done = positions.map(tradeStats).filter((t) => t.fullySold);
+  const pl = done.reduce((a, t) => a + (t.proceeds - t.invested), 0);
+  const withDays = done.filter((t) => t.days != null);
+  return {
+    trades: done.length,
+    wins: done.filter((t) => t.proceeds > t.invested).length,
+    winRate: done.length ? (done.filter((t) => t.proceeds > t.invested).length / done.length) * 100 : undefined,
+    invested: done.reduce((a, t) => a + t.invested, 0),
+    pl,
+    avgReturn: done.length ? done.reduce((a, t) => a + t.returnPct!, 0) / done.length : undefined,
+    avgDays: withDays.length ? withDays.reduce((a, t) => a + t.days!, 0) / withDays.length : undefined,
+  };
 }
 
 // Stück-weighted average price of all purchases of one warrant
@@ -85,12 +168,17 @@ export function evaluatePosition(p: Position, ctx: Context): PositionView {
   const refBid = refWarrant?.bid;
   const badges: Badge[] = [];
 
-  const value = held.length && held.every((w) => w.bid != null) ? held.reduce((a, w) => a + (shares.get(w.id) ?? 0) * w.bid!, 0) : undefined;
+  const proceeds = (p.sells ?? []).reduce((a, x) => a + x.quantity * x.price, 0);
+  // value of the pieces still held; everything sold counts as 0
+  const remaining = held.every((w) => w.bid != null) ? held.reduce((a, w) => a + (shares.get(w.id) ?? 0) * w.bid!, 0) : undefined;
+  // total value = still held + already realised (so ±0 and the target cover all trades of the share)
+  const value = remaining != null && stage ? remaining + proceeds : undefined;
   const plPct = value != null && invested > 0 ? (value / invested - 1) * 100 : undefined;
-  const avgPrice = held.length === 1 ? averagePrice(buys) : undefined;
+  const singleWarrant = new Set(buys.map((b) => b.warrantId)).size === 1;
+  const avgPrice = singleWarrant ? averagePrice(buys) : undefined;
 
   // price of the reference warrant at which the whole position is worth `target` EUR
-  const levelFor = (target: number) => (value && refBid ? (refBid * target) / value : undefined);
+  const levelFor = (target: number) => (remaining && refBid ? (refBid * (target - proceeds)) / remaining : undefined);
   const dist = (price?: number) => (price != null && refBid ? (price / refBid - 1) * 100 : undefined);
 
   const levels: Level[] = [];
@@ -136,6 +224,7 @@ export function evaluatePosition(p: Position, ctx: Context): PositionView {
   const action = ((): Action => {
     if (p.status === "closed") return { tone: "grey", kind: "hold", title: "Geschlossen" };
     if (!stage) return { tone: "grey", kind: "missing", title: "Teilkäufe nachtragen", detail: "Ohne Kaufpreis und Betrag lässt sich die Leiter nicht berechnen." };
+    if (!held.length) return { tone: "grey", kind: "missing", title: "Alles verkauft: Position schließen", detail: `Ergebnis ${fmtPct(plPct)} (${fmtEur(proceeds - invested)}).` };
     if (value == null || refBid == null) return { tone: "grey", kind: "missing", title: "Aktuellen Geldkurs eintragen", detail: "Für jeden gehaltenen Schein wird ein aktueller Geldkurs (Bid) benötigt." };
     if (plPct! >= s.takeProfit * 100 - EPS) return { tone: "green", kind: "target", title: "Ziel erreicht: verkaufen", detail: `Position steht bei ${fmtPct(plPct)}.` };
     if (stage >= 3 && value >= invested * (1 - EPS)) return { tone: "green", kind: "breakeven", title: "Bei ±0: alles verkaufen, mit x neu einsteigen", detail: "Danach mit dem aktuell besten Schein neu beginnen." };

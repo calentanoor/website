@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { DEFAULT_SETTINGS, startData } from "@/lib/os/defaults";
-import { ACTION_ORDER, evaluatePosition, fmtEur, fmtPct, type PositionView } from "@/lib/os/ladder";
+import { ACTION_ORDER, evaluatePosition, fmtEur, fmtPct, historyStats, tradeStats, type PositionView } from "@/lib/os/ladder";
 import { callFromWarrantEur, impliedVol, yearsBetween } from "@/lib/os/model";
 import type { Market } from "@/lib/os/finder";
 import type { Candidate, OsStore, Position, Settings, Warrant } from "@/lib/os/types";
@@ -116,6 +116,39 @@ function OsAppInner() {
   const todo = openViews.filter((v) => v.action.tone !== "white").sort((a, b) => ACTION_ORDER[a.action.tone] - ACTION_ORDER[b.action.tone]);
   const sortedOpen = [...openViews].sort((a, b) => ACTION_ORDER[a.action.tone] - ACTION_ORDER[b.action.tone]);
 
+  // Merge another position of the same share into `targetId` (warrants, buys, sales)
+  const merge = (targetId: string, sourceId: string) =>
+    setPositions((ps) => {
+      const target = ps.find((x) => x.id === targetId);
+      const source = ps.find((x) => x.id === sourceId);
+      if (!target || !source) return ps;
+      const merged: Position = {
+        ...target,
+        warrants: [...target.warrants, ...source.warrants.filter((w) => !target.warrants.some((t) => t.id === w.id))],
+        buys: [...target.buys, ...source.buys],
+        sells: [...(target.sells ?? []), ...(source.sells ?? [])],
+        note: [target.note, source.note].filter(Boolean).join(" · ") || undefined,
+      };
+      return ps.filter((x) => x.id !== sourceId).map((x) => (x.id === targetId ? merged : x));
+    });
+  const mergeTargetsFor = (p: Position) =>
+    positions
+      .filter((x) => x.id !== p.id && x.symbol === p.symbol)
+      .map((x) => ({ id: x.id, label: `${x.status === "open" ? "offen" : `geschlossen ${fmtDate(x.closedDate)}`} · ${x.warrants.map((w) => w.wkn || "ohne WKN").join(", ")}` }));
+  const cardProps = (v: PositionView) => ({
+    view: v,
+    settings,
+    stockPrice: stockPriceOf(v.position.symbol, v.position),
+    stockPriceSource: v.position.stockPrice ? "manuell" : live.quotes[v.position.symbol]?.price ? "live" : undefined,
+    earningsDate: earningsOf(v.position.symbol, v.position),
+    best: v.position.status === "open" ? best.get(v.position.symbol) : undefined,
+    onChange: (p: Position) => setPositions((ps) => ps.map((x) => (x.id === p.id ? p : x))),
+    onDelete: () => setPositions((ps) => ps.filter((x) => x.id !== v.position.id)),
+    onOpenFinder: openFinder,
+    mergeTargets: mergeTargetsFor(v.position),
+    onMerge: (otherId: string) => merge(v.position.id, otherId),
+  });
+
   const openFinder = (symbol: string) => {
     setFinderSymbol(symbol);
     setTab("finder");
@@ -175,43 +208,12 @@ function OsAppInner() {
 
           <div className="grid gap-4 xl:grid-cols-2">
             {sortedOpen.map((v) => (
-              <PositionCard
-                key={v.position.id}
-                view={v}
-                settings={settings}
-                stockPrice={stockPriceOf(v.position.symbol, v.position)}
-                stockPriceSource={v.position.stockPrice ? "manuell" : live.quotes[v.position.symbol]?.price ? "live" : undefined}
-                earningsDate={earningsOf(v.position.symbol, v.position)}
-                best={best.get(v.position.symbol)}
-                onChange={(p) => setPositions((ps) => ps.map((x) => (x.id === p.id ? p : x)))}
-                onDelete={() => setPositions((ps) => ps.filter((x) => x.id !== v.position.id))}
-                onOpenFinder={openFinder}
-              />
+              <PositionCard key={v.position.id} {...cardProps(v)} />
             ))}
           </div>
-          <NewPosition sectors={Object.keys(settings.sectorBudgets)} onCreate={(p) => setPositions((ps) => [...ps, p])} />
+          <NewPosition sectors={Object.keys(settings.sectorBudgets)} openSymbols={open.map((p) => p.symbol)} onCreate={(p) => setPositions((ps) => [...ps, p])} />
 
-          {closedViews.length > 0 && (
-            <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-              <h2 className="mb-2 font-medium">Historie (geschlossen)</h2>
-              <ul className="divide-y divide-border/60 text-sm">
-                {closedViews.map((v) => {
-                  const result = v.position.closedValue != null && v.invested ? (v.position.closedValue / v.invested - 1) * 100 : undefined;
-                  return (
-                    <li key={v.position.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                      <span>
-                        <span className="font-medium">{v.position.symbol}</span> · {v.position.warrants.map((w) => w.wkn).join(", ")} · geschlossen {fmtDate(v.position.closedDate)}
-                      </span>
-                      <span className="flex items-center gap-3 tabular-nums">
-                        {fmtEur(v.invested)} → {fmtEur(v.position.closedValue)} <span className={result == null ? "text-muted" : result >= 0 ? "text-up" : "text-down"}>{fmtPct(result)}</span>
-                        <button onClick={() => setPositions((ps) => ps.map((x) => (x.id === v.position.id ? { ...x, status: "open", closedDate: undefined, closedValue: undefined } : x)))} className="text-xs text-accent hover:underline">öffnen</button>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
+          {closedViews.length > 0 && <History views={closedViews} cardProps={cardProps} />}
         </>
       )}
 
@@ -288,7 +290,58 @@ function Overview({ views, settings }: { views: PositionView[]; settings: Settin
   );
 }
 
-function NewPosition({ sectors, onCreate }: { sectors: string[]; onCreate: (p: Position) => void }) {
+function History({ views, cardProps }: { views: PositionView[]; cardProps: (v: PositionView) => React.ComponentProps<typeof PositionCard> }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const h = historyStats(views.map((v) => v.position));
+  const rows = views
+    .map((v) => ({ v, t: tradeStats(v.position) }))
+    .sort((a, b) => (b.t.lastSell ?? "").localeCompare(a.t.lastSell ?? ""));
+  const card = "rounded-lg bg-background/70 px-3 py-2";
+  return (
+    <section className="space-y-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <h2 className="font-medium">Historie (geschlossene Trades)</h2>
+      <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+        <div className={card}><div className="font-semibold tabular-nums">{h.trades}</div><div className="text-xs text-muted">Trades mit Ergebnis</div></div>
+        <div className={card}><div className="font-semibold tabular-nums">{h.winRate != null ? `${Math.round(h.winRate)} %` : "–"}</div><div className="text-xs text-muted">Trefferquote</div></div>
+        <div className={card}><div className={`font-semibold tabular-nums ${h.pl >= 0 ? "text-up" : "text-down"}`}>{fmtEur(h.pl)}</div><div className="text-xs text-muted">Gewinn/Verlust gesamt</div></div>
+        <div className={card}><div className={`font-semibold tabular-nums ${(h.avgReturn ?? 0) >= 0 ? "text-up" : "text-down"}`}>{fmtPct(h.avgReturn)}</div><div className="text-xs text-muted">Ø Rendite je Trade</div></div>
+        <div className={card}><div className="font-semibold tabular-nums">{h.avgDays != null ? `${Math.round(h.avgDays)} Tage` : "–"}</div><div className="text-xs text-muted">Ø Haltedauer</div></div>
+      </div>
+      <ul className="divide-y divide-border/60 text-sm">
+        {rows.map(({ v, t }) => (
+          <li key={v.position.id} className="py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <span className="font-medium">{v.position.name ?? v.position.symbol}</span>
+                <span className="text-muted"> · {v.position.warrants.map((w) => w.wkn || "ohne WKN").join(", ")} · {fmtDate(t.firstBuy)} – {fmtDate(t.lastSell)}{t.days != null ? ` (${t.days} Tage)` : ""}</span>
+              </span>
+              <span className="flex items-center gap-3 tabular-nums">
+                {t.fullySold ? (
+                  <>
+                    {fmtEur(t.invested)} → {fmtEur(t.proceeds)}
+                    <span className={t.returnPct! >= 0 ? "text-up" : "text-down"}>{fmtPct(t.returnPct)}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-neutral">{t.invested ? "Verkäufe nachtragen" : "Käufe und Verkäufe nachtragen"}</span>
+                )}
+                <button onClick={() => setOpenId(openId === v.position.id ? null : v.position.id)} className="text-xs text-accent hover:underline">
+                  {openId === v.position.id ? "zuklappen" : "Details"}
+                </button>
+              </span>
+            </div>
+            {openId === v.position.id && (
+              <div className="mt-2">
+                <PositionCard {...cardProps(v)} />
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function NewPosition({ sectors, openSymbols, onCreate }: { sectors: string[]; openSymbols: string[]; onCreate: (p: Position) => void }) {
   const [open, setOpen] = useState(false);
   const [symbol, setSymbol] = useState("");
   const [sector, setSector] = useState(sectors[0] ?? "");
@@ -300,7 +353,12 @@ function NewPosition({ sectors, onCreate }: { sectors: string[]; onCreate: (p: P
         <input list="os-sectors" value={sector} onChange={(e) => setSector(e.target.value)} className={inputClass} />
         <datalist id="os-sectors">{sectors.map((s) => <option key={s} value={s} />)}</datalist>
       </Field>
-      <div className="flex items-end gap-2 sm:col-span-2">
+      <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+        {openSymbols.includes(symbol) && (
+          <p className="w-full text-xs text-neutral">
+            Für {symbol} gibt es schon eine offene Position. Neue Scheine dort über „Schein hinzufügen“ ergänzen – dann gilt ±0 über alle Käufe zusammen.
+          </p>
+        )}
         <button
           disabled={!symbol}
           onClick={() => {
