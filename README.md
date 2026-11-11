@@ -26,6 +26,14 @@ Produktiv: `npm run build && npm start`.
   Doppelboden/-top, (inverse) SKS, Dreiecke, Keile, Trendkanäle, Range, Flaggen,
   Ausbrüche aus Unterstützung/Widerstand; mit Auslöser, Kursziel, Stopp, Konfidenz und
   Optionsidee. Formationen werden auch im Chart der Detailseite eingezeichnet.
+- **Strategie** (`/strategie`): Optionsschein-Strategie – Positions-Dashboard mit Nachkauf-Leiter
+  (x · x · 2x, Ziel +20 % auf den Einstand, bei 4x Ausstieg bei ±0), Ampel „Nächster Schritt“,
+  Leitplanken (Verlust-/Zeit-Stopp, Quartalszahlen, Sektor-Budget, Restlaufzeit) und
+  Schein-Finder (Filter Omega/Laufzeit/Basis/Spread, Ranking nach Zeitwertverlust, IV, Vega,
+  Spread). Rechenlogik in `src/lib/os/` (Black-Scholes, Leiter, Finder) mit Unit-Tests
+  (`npm test`). Daten im Browser (localStorage) mit JSON-Export/-Import; Aktienkurse,
+  Quartalstermine und EUR/USD über `/api/os-market`. Der frühere Backtest liegt unter
+  `/strategie/backtest`.
 - **Top 5 heute** (Startseite) und **Strategie** (`/strategie`): drei regelbasierte Strategien
   (`src/lib/strategy.ts`) – Momentum-Trendfolge, Formations-Ausbruch, Rücksetzer im
   Aufwärtstrend – mit Marktfilter (Index über/unter SMA 200), Trailing-Stop, max. 90 Handelstagen

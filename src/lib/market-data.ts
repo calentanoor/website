@@ -176,3 +176,13 @@ export async function searchSymbols(query: string): Promise<SearchResult[]> {
       : [],
   );
 }
+
+// EUR/USD exchange rate (USD per EUR)
+export async function getEurUsd(): Promise<number> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 900, expire: 86400 });
+  if (mockEnabled()) return 1.08;
+  const q = await yahooFinance.quote("EURUSD=X");
+  if (!q.regularMarketPrice) throw new Error("EUR/USD nicht verfügbar");
+  return q.regularMarketPrice;
+}
