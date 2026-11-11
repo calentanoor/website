@@ -99,7 +99,7 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
         {patterns.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-muted">Aktuell keine klare Formation erkannt.</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {patterns.map((p) => (
               <PatternCard key={p.id} pattern={p} price={stock.price} optionsSymbol={hasOptions ? stock.symbol : undefined} />
             ))}
@@ -107,12 +107,12 @@ async function StockDetail({ params }: { params: Promise<{ symbol: string }> }) 
         )}
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryPanel title="Fundamentalanalyse" score={rating.fundamental} categories={rating.fundamentalCategories} />
         <CategoryPanel title="Technische Analyse" score={rating.technical} categories={rating.technicalCategories} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-surface shadow-sm p-4">
           <h2 className="mb-3 font-medium">Kennzahlen</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">

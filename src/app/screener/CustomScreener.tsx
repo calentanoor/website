@@ -86,7 +86,7 @@ export function CustomScreener({ indices }: { indices: { id: string; name: strin
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
         <section className="space-y-5 rounded-xl border border-border bg-surface p-4 shadow-sm">
           <div>
             <h2 className="mb-2 text-sm font-medium">Universum</h2>

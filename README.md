@@ -15,7 +15,12 @@ Produktiv: `npm run build && npm start`.
 
 ## Seiten
 
-- **Übersicht**: Index-Kacheln mit Technik-Rating
+Navigation: Übersicht · Strategie · Screener · Indizes ▾ · Tools ▾ (Formationen, Optionen) ·
+Watchlist · Kalender; am Handy als Menü.
+
+- **Übersicht** (für das Handy optimiert): eigene Optionsschein-Positionen mit Eingabefeld für
+  den Geldkurs und dem nächsten Schritt, Top 5 für die Strategie (Fundamental und Technik
+  ≥ 60, mit Call-Profil Omega ≈ 2,75; `src/lib/os/picks.ts`) und kompakte Index-Kacheln
 - **Index-Screener** (`/index/[id]`): Tabelle aller Mitglieder mit Ratings, Analysten-Konsens, Signalen
 - **Eigene Ansicht** (`/screener`): Universum + frei kombinierbare Kennzahlen-Filter, speicherbare Ansichten
 - **Watchlist** (`/watchlist`): per Stern markierte oder gesuchte Werte

@@ -85,7 +85,7 @@ export function Finder({ symbols, symbol, onSymbol, candidates, settings, market
       {views.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-muted">Noch keine Kandidaten für {symbol}.</p>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {views.map((v) => (
             <CandidateCard key={v.candidate.id} v={v} market={market} settings={settings} onDelete={() => onCandidates((l) => l.filter((c) => c.id !== v.candidate.id))} onAdopt={() => onAdopt(v.candidate)} />
           ))}

@@ -1,12 +1,8 @@
 import "server-only";
 import { cacheLife } from "next/cache";
-import { getIndex, INDICES } from "./indices";
+import { getIndex } from "./indices";
 import { getHistory, getStockSafe } from "./market-data";
-import { prepare, replay, signalOn, DEFAULT_PARAMS, RULES, STRATEGIES, type Candidate, type StrategyId, type Trade } from "./strategy";
-import { warrantIdea, type WarrantIdea } from "./warrant";
-
-// Strategy used for the "Top 5 heute" on the home page.
-export const ACTIVE_STRATEGY: StrategyId = "momentum";
+import { prepare, replay, RULES, STRATEGIES, type StrategyId, type Trade } from "./strategy";
 
 export const isStrategy = (v: string | null): v is StrategyId => !!v && v in STRATEGIES;
 
@@ -77,31 +73,4 @@ export async function getBenchmarks(): Promise<{ symbol: string; name: string; r
     }),
   );
   return out.filter((x): x is NonNullable<typeof x> => !!x);
-}
-
-export type Pick = Candidate & { name: string; currency: string; warrant: WarrantIdea };
-
-// Today's top picks across all index members, ranked by signal score.
-export async function getTopPicks(strategy: StrategyId = ACTIVE_STRATEGY, limit = RULES.picksPerDay): Promise<{ picks: Pick[]; candidates: number }> {
-  const symbols = [...new Set(INDICES.flatMap((i) => i.constituents ?? []))];
-  const benchmarks = new Map(
-    await Promise.all(["^GSPC", "^GDAXI", "^STOXX50E"].map(async (b) => [b, await getHistory(b).catch(() => undefined)] as const)),
-  );
-  const signals = await Promise.all(
-    symbols.map(async (symbol) => {
-      try {
-        const s = prepare(await getHistory(symbol), benchmarks.get(benchmarkOf(symbol)));
-        return signalOn(strategy, symbol, s, s.c.length - 1);
-      } catch {
-        return undefined;
-      }
-    }),
-  );
-  const ranked = signals.filter((s): s is Candidate => !!s).sort((a, b) => b.score - a.score);
-  const top = ranked.slice(0, limit);
-  const infos = await Promise.all(top.map((c) => infoFor(c.symbol)));
-  return {
-    picks: top.map((c, i) => ({ ...c, ...infos[i], warrant: warrantIdea(c.direction, c.price, c.vol, DEFAULT_PARAMS.warrantDays, DEFAULT_PARAMS.warrantMoneyness) })),
-    candidates: ranked.length,
-  };
 }

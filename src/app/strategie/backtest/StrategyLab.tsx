@@ -245,7 +245,7 @@ export function StrategyLab({ indices }: { indices: { id: string; name: string }
           </section>
 
           {tab === "backtest" && (
-            <div className="grid gap-4 xl:grid-cols-[1fr_1.6fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.6fr]">
               <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                 <h2 className="mb-3 font-medium">Jahresrenditen</h2>
                 <table className="w-full text-sm tabular-nums">

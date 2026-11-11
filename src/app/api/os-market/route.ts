@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     stocks.map((s) =>
       "error" in s
         ? [s.symbol, { error: s.error }]
-        : [s.symbol, { price: s.price, currency: s.currency, name: s.name, sector: s.sector, earningsDate: s.events.earningsDate }],
+        : [s.symbol, { price: s.price, changePercent: s.changePercent, currency: s.currency, name: s.name, sector: s.sector, earningsDate: s.events.earningsDate }],
     ),
   );
   return Response.json({ eurusd, quotes, asOf: new Date().toISOString() });

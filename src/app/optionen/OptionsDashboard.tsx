@@ -136,7 +136,7 @@ export function OptionsDashboard({ analysis: a }: { analysis: OptionsAnalysis })
         )}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <h2 className="mb-1 font-medium">Open Interest nach Strike</h2>
           <p className="mb-3 text-xs text-muted">Gewählter Verfall, ±15 % um den Kurs. Große Balken wirken oft als Widerstand (Calls) bzw. Unterstützung (Puts).</p>
@@ -163,7 +163,7 @@ export function OptionsDashboard({ analysis: a }: { analysis: OptionsAnalysis })
         </section>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.4fr]">
         <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <h2 className="mb-1 font-medium">Volatilitätskurve (Smile)</h2>
           <p className="mb-3 text-xs text-muted">Implizite Volatilität je Strike für den gewählten Verfall (OTM-Puts links, OTM-Calls rechts).</p>
